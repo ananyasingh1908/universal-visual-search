@@ -1,0 +1,12 @@
+venv/
+venv312/
+
+__pycache__/
+*.pyc
+
+backend/data/
+backend/outputs/
+backend/screenshots/
+backend/uploads/
+
+temp_image.jpg
