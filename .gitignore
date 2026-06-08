@@ -9,4 +9,7 @@ backend/outputs/
 backend/screenshots/
 backend/uploads/
 
+frontend/.next/
+frontend/node_modules/
+
 temp_image.jpg

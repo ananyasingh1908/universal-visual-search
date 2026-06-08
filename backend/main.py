@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(
-        asyncio.WindowsSelectorEventLoopPolicy()
+        asyncio.WindowsProactorEventLoopPolicy()
     )
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
@@ -161,7 +161,7 @@ async def scan_website(request: WebsiteScanRequest):
             browser = await playwright.chromium.launch(headless=True)
             page = await browser.new_page()
 
-            response = await page.goto(
+            response = .goto(
                 request.url,
                 wait_until="networkidle",
                 timeout=30000
@@ -175,7 +175,7 @@ async def scan_website(request: WebsiteScanRequest):
 
             await page.screenshot(
                 path=str(screenshot_path),
-                full_page=True
+                full_page=False
             )
 
             await browser.close()
@@ -200,3 +200,63 @@ async def scan_website(request: WebsiteScanRequest):
     )
 
     return result
+
+@app.get("/documents")
+async def get_documents():
+    documents = []
+
+    DATA_DIR.mkdir(exist_ok=True)
+
+    for file in DATA_DIR.glob("*.json"):
+        documents.append({
+            "document_id": file.stem,
+            "filename": file.name,
+        })
+
+    return {
+        "total_documents": len(documents),
+        "documents": documents
+    }
+
+@app.post("/search-all")
+async def search_all(request: SearchRequest):
+
+    keyword = request.keyword.strip().lower()
+
+    if not keyword:
+        raise HTTPException(
+            status_code=400,
+            detail="Keyword cannot be empty"
+        )
+
+    results = []
+
+    for file in DATA_DIR.glob("*.json"):
+
+        with file.open(
+            "r",
+            encoding="utf-8"
+        ) as f:
+
+            ocr_entries = json.load(f)
+
+        matches = [
+            entry
+            for entry in ocr_entries
+            if keyword in str(
+                entry.get("text", "")
+            ).lower()
+        ]
+
+        if matches:
+            results.append({
+                "document_id": file.stem,
+                "total_matches": len(matches),
+                "matches": matches
+            })
+
+    return {
+        "keyword": request.keyword,
+        "documents_found": len(results),
+        "results": results
+    }
