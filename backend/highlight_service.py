@@ -53,8 +53,10 @@ def highlight_keyword(document_id: str, keyword: str, base_dir: Path) -> dict:
     output_path = outputs_dir / output_name
     cv2.imwrite(str(output_path), image)
 
+    filename = output_path.name
+
     return {
-        "highlighted_image_path": str(output_path),
+        "highlighted_image_url": f"http://127.0.0.1:8000/outputs/{filename}",
         "total_matches": len(matches),
     }
 

@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
+from fastapi.middleware.cors import CORSMiddleware 
+from fastapi.staticfiles import StaticFiles
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(
@@ -27,11 +29,36 @@ from ocr_service import process_image_document
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 reader = easyocr.Reader(['en'])
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 UPLOADS_DIR = BASE_DIR / "uploads"
 SCREENSHOTS_DIR = BASE_DIR / "screenshots"
+
+OUTPUTS_DIR = BASE_DIR / "outputs"
+
+app.mount(
+    "/outputs",
+    StaticFiles(directory=OUTPUTS_DIR),
+    name="outputs",
+)
+
+app.mount(
+    "/screenshots",
+    StaticFiles(directory=SCREENSHOTS_DIR),
+    name="screenshots",
+)
 
 
 class SearchRequest(BaseModel):
@@ -119,37 +146,20 @@ async def highlight_document(request: HighlightRequest):
 
 @app.post("/scan-website")
 async def scan_website(request: WebsiteScanRequest):
-
-    print("STEP 1")
-
     parsed_url = urlparse(request.url)
     if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
         raise HTTPException(status_code=400, detail="Invalid URL")
 
-    print("STEP 2")
-
     document_id = str(uuid4())
-
-    print("STEP 3")
 
     SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
     screenshot_path = SCREENSHOTS_DIR / f"{document_id}.png"
 
-    print("STEP 4")
-
     try:
         async with async_playwright() as playwright:
-
-            print("STEP 5")
-
             browser = await playwright.chromium.launch(headless=True)
-
-            print("STEP 6")
-
             page = await browser.new_page()
-
-            print("STEP 7")
 
             response = await page.goto(
                 request.url,
@@ -157,35 +167,36 @@ async def scan_website(request: WebsiteScanRequest):
                 timeout=30000
             )
 
-            print("STEP 8")
-
             if response is None:
                 raise HTTPException(
                     status_code=502,
                     detail="No response received from website"
                 )
 
-            print("STEP 9")
-
             await page.screenshot(
                 path=str(screenshot_path),
                 full_page=True
             )
 
-            print("STEP 10")
-
             await browser.close()
 
-    except Exception as e:
-        print("SCAN WEBSITE ERROR:")
-        print(repr(e))
+    except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Website scan failed: {str(e)}"
+        )
 
-    print("STEP 11")
-
-    return process_image_document(
+    result = process_image_document(
         reader,
         screenshot_path,
         document_id,
         DATA_DIR
     )
+
+    result["screenshot_url"] = (
+        f"http://127.0.0.1:8000/screenshots/{screenshot_path.name}"
+    )
+
+    return result
