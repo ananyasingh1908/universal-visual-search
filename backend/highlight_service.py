@@ -19,7 +19,12 @@ class ImageReadError(Exception):
     pass
 
 
-def highlight_keyword(document_id: str, keyword: str, base_dir: Path) -> dict:
+def highlight_keyword(
+    document_id: str,
+    keyword: str,
+    base_dir: Path,
+    page_number: int | None = None,
+) -> dict:
     data_dir = base_dir / "data"
     outputs_dir = base_dir / "outputs"
 
@@ -27,47 +32,86 @@ def highlight_keyword(document_id: str, keyword: str, base_dir: Path) -> dict:
     if not document_path.is_file():
         raise DocumentNotFoundError("Document not found")
 
-    image_path = _find_original_image(document_id, base_dir)
-    if image_path is None:
-        raise OriginalImageNotFoundError("Original image not found")
-
     with document_path.open("r", encoding="utf-8") as f:
         ocr_entries = json.load(f)
 
     keyword_lower = keyword.lower()
-    matches = [
+    all_matches = [
         entry
         for entry in ocr_entries
         if keyword_lower in str(entry.get("text", "")).lower()
     ]
 
+    if not all_matches:
+        return {
+            "highlighted_image_url": None,
+            "total_matches": 0,
+            "page_number": page_number,
+        }
+
+    target_page = page_number
+    if target_page is None:
+        target_page = all_matches[0].get("page_number", 1)
+
+    page_matches = [
+        m for m in all_matches
+        if m.get("page_number", 1) == target_page
+    ]
+    if not page_matches:
+        page_matches = all_matches
+
+    image_path = _find_original_image(document_id, base_dir, target_page)
+    if image_path is None:
+        raise OriginalImageNotFoundError(
+            f"Original image not found for page {target_page}"
+        )
+
     image = cv2.imread(str(image_path))
     if image is None:
         raise ImageReadError("Original image could not be read")
 
-    for entry in matches:
+    for entry in page_matches:
         _draw_bbox(image, entry.get("bbox", []))
 
     outputs_dir.mkdir(parents=True, exist_ok=True)
-    output_name = f"{document_id}_{_safe_filename_part(keyword)}.png"
+    page_suffix = f"_p{target_page}" if target_page != 1 or _has_page_numbered_screenshots(document_id, base_dir) else ""
+    output_name = f"{document_id}{page_suffix}_{_safe_filename_part(keyword)}.png"
     output_path = outputs_dir / output_name
     cv2.imwrite(str(output_path), image)
 
-    filename = output_path.name
-
     return {
-        "highlighted_image_url": f"http://127.0.0.1:8000/outputs/{filename}",
-        "total_matches": len(matches),
+        "highlighted_image_url": f"http://127.0.0.1:8000/outputs/{output_path.name}",
+        "total_matches": len(page_matches),
+        "page_number": target_page,
     }
 
 
-def _find_original_image(document_id: str, base_dir: Path) -> Path | None:
+def _has_page_numbered_screenshots(document_id: str, base_dir: Path) -> bool:
+    screenshots_dir = base_dir / "screenshots"
+    if not screenshots_dir.is_dir():
+        return False
+    return any(
+        screenshots_dir.glob(f"{document_id}_p*.png")
+    )
+
+
+def _find_original_image(
+    document_id: str,
+    base_dir: Path,
+    page_number: int | None = None,
+) -> Path | None:
     search_dirs = [
         base_dir / "uploads",
         base_dir / "screenshots",
     ]
 
     for image_dir in search_dirs:
+        if page_number is not None:
+            for ext in IMAGE_EXTENSIONS:
+                page_path = image_dir / f"{document_id}_p{page_number}{ext}"
+                if page_path.is_file():
+                    return page_path
+
         image_path = _find_image_in_directory(image_dir, document_id)
         if image_path is not None:
             return image_path

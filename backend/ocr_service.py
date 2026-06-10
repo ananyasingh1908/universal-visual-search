@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 
-def run_ocr(reader, image_path: Path) -> list[dict]:
+def run_ocr(reader, image_path: Path, page_number: int = 1) -> list[dict]:
     results = reader.readtext(str(image_path))
     output = []
 
@@ -15,7 +15,8 @@ def run_ocr(reader, image_path: Path) -> list[dict]:
         output.append({
             "text": str(text),
             "confidence": float(confidence),
-            "bbox": clean_bbox
+            "bbox": clean_bbox,
+            "page_number": page_number,
         })
 
     return output
