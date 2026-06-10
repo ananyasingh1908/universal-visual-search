@@ -161,7 +161,7 @@ async def scan_website(request: WebsiteScanRequest):
             browser = await playwright.chromium.launch(headless=True)
             page = await browser.new_page()
 
-            response = .goto(
+            response = await page.goto(
                 request.url,
                 wait_until="networkidle",
                 timeout=30000
