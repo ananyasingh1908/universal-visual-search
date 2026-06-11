@@ -13,3 +13,5 @@ frontend/.next/
 frontend/node_modules/
 
 temp_image.jpg
+backend/.env
+backend/.env.local
