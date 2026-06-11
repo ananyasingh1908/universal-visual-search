@@ -15,19 +15,21 @@ if sys.platform == "win32":
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from playwright.async_api import async_playwright
 from pydantic import BaseModel
-import easyocr
 
 from highlight_service import (
     DocumentNotFoundError,
     ImageReadError,
     OriginalImageNotFoundError,
-    highlight_keyword,
+    highlight_keywords,
 )
+from lokmat_scraper import scrape_lokmat_times_edition
+from news_keywords import first_matching_keyword, get_news_keywords
 from ocr_service import (
     process_image_document,
     run_ocr,
     save_ocr_output,
     count_words,
+    summarize_headline,
 )
 
 app = FastAPI()
@@ -37,39 +39,49 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-reader = easyocr.Reader(['en'])
+reader = None
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 UPLOADS_DIR = BASE_DIR / "uploads"
 SCREENSHOTS_DIR = BASE_DIR / "screenshots"
 OUTPUTS_DIR = BASE_DIR / "outputs"
 
+SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+
 app.mount("/outputs", StaticFiles(directory=OUTPUTS_DIR), name="outputs")
 app.mount("/screenshots", StaticFiles(directory=SCREENSHOTS_DIR), name="screenshots")
 
-SCREENSHOT_BASE_URL = "/screenshots"
+SCREENSHOT_BASE_URL = "http://127.0.0.1:8001/screenshots"
 OUTPUT_BASE_URL = "/outputs"
 
 
 class SearchRequest(BaseModel):
     document_id: str
-    keyword: str
+    keyword: str | None = None
 
 
 class HighlightRequest(BaseModel):
     document_id: str
-    keyword: str
+    keyword: str | None = None
     page_number: int | None = None
 
 
 class WebsiteScanRequest(BaseModel):
     url: str
+
+
+class LokmatScrapeRequest(BaseModel):
+    edition_name: str
+    date: str
 
 
 _jobs: dict[str, dict] = {}
@@ -86,7 +98,13 @@ async def extract_text(file: UploadFile = File(...)):
     with upload_path.open("wb") as f:
         f.write(image_bytes)
 
-    return process_image_document(reader, upload_path, document_id, DATA_DIR)
+    return await asyncio.to_thread(
+        process_image_document,
+        reader,
+        upload_path,
+        document_id,
+        DATA_DIR,
+    )
 
 
 @app.post("/search")
@@ -96,10 +114,6 @@ async def search_document(request: SearchRequest):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid document_id")
 
-    keyword = request.keyword.strip()
-    if not keyword:
-        raise HTTPException(status_code=400, detail="Keyword cannot be empty")
-
     document_path = DATA_DIR / f"{document_id}.json"
     if not document_path.is_file():
         raise HTTPException(status_code=404, detail="Document not found")
@@ -107,16 +121,21 @@ async def search_document(request: SearchRequest):
     with document_path.open("r", encoding="utf-8") as f:
         ocr_entries = json.load(f)
 
-    keyword_lower = keyword.lower()
-    matches = [
-        entry
-        for entry in ocr_entries
-        if keyword_lower in str(entry.get("text", "")).lower()
-    ]
+    keywords = get_news_keywords()
+    matches = []
+    for entry in ocr_entries:
+        matched_keyword = first_matching_keyword(str(entry.get("text", "")), keywords)
+        if not matched_keyword:
+            continue
+        matches.append({
+            **entry,
+            "matched_keyword": matched_keyword,
+        })
 
     return {
         "document_id": document_id,
-        "keyword": keyword,
+        "keyword": "predefined keyword set",
+        "keywords": list(keywords),
         "total_matches": len(matches),
         "matches": matches,
     }
@@ -129,13 +148,11 @@ async def highlight_document(request: HighlightRequest):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid document_id")
 
-    keyword = request.keyword.strip()
-    if not keyword:
-        raise HTTPException(status_code=400, detail="Keyword cannot be empty")
-
     try:
-        return highlight_keyword(
-            document_id, keyword, BASE_DIR,
+        return highlight_keywords(
+            document_id,
+            list(get_news_keywords()),
+            BASE_DIR,
             page_number=request.page_number,
         )
     except DocumentNotFoundError as exc:
@@ -296,6 +313,7 @@ async def _run_scan_job(job_id: str, url: str):
             all_ocr_entries: list[dict] = []
             pages_scanned = 0
             page_screenshots: dict[str, str] = {}
+            page_headlines: dict[str, str] = {}
             page_errors: list[str] = []
             loop = asyncio.get_running_loop()
 
@@ -320,12 +338,12 @@ async def _run_scan_job(job_id: str, url: str):
                     shot_name = f"{document_id}_p{page_num}.png"
                     shot_path = SCREENSHOTS_DIR / shot_name
                     await page.screenshot(
-                        path=str(shot_path), full_page=False
-
-                        print("Saved:", shot_path)
-                        print("Exists:", shot_path.exists())
+                        path=str(shot_path),
+                        full_page=True,
                     )
-                    
+
+                    print("Saved:", shot_path)
+                    print("Exists:", shot_path.exists())
 
                     page_screenshots[str(page_num)] = (
                         f"{SCREENSHOT_BASE_URL}/{shot_name}"
@@ -335,6 +353,9 @@ async def _run_scan_job(job_id: str, url: str):
                         None, run_ocr, reader, shot_path, page_num,
                     )
                     all_ocr_entries.extend(ocr_entries)
+                    headline_summary = summarize_headline(ocr_entries)
+                    if headline_summary["headline_text"]:
+                        page_headlines[str(page_num)] = headline_summary["headline_text"]
                     pages_scanned += 1
 
                 except Exception as page_err:
@@ -365,11 +386,89 @@ async def _run_scan_job(job_id: str, url: str):
             "total_words": total_words,
             "screenshots": page_screenshots,
             "screenshot_url": page_screenshots.get("1", ""),
+            "page_headlines": page_headlines,
+            "headline_text": page_headlines.get("1", "")
+                or next(iter(page_headlines.values()), ""),
         }
 
     except Exception as e:
         _jobs[job_id]["status"] = "failed"
         _jobs[job_id]["error"] = str(e)
+
+
+@app.post("/scrape-lokmat-times")
+async def scrape_lokmat_times(request: LokmatScrapeRequest):
+    edition_name = request.edition_name.strip()
+    date_value = request.date.strip()
+
+    if not edition_name:
+        raise HTTPException(status_code=400, detail="edition_name is required")
+
+    job_id = str(uuid4())
+    _jobs[job_id] = {
+        "status": "pending",
+        "progress": {
+            "current_page": 0,
+            "total_pages": 0,
+            "words_extracted": 0,
+        },
+        "result": None,
+        "error": None,
+    }
+
+    asyncio.create_task(
+        _run_lokmat_scrape_job(job_id, edition_name, date_value)
+    )
+
+    return {"job_id": job_id, "status": "pending"}
+
+
+@app.get("/scrape-lokmat-times/status/{job_id}")
+async def scrape_lokmat_times_status(job_id: str):
+    job = _jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    response = {
+        "job_id": job_id,
+        "status": job["status"],
+        "progress": job["progress"],
+    }
+    if job["status"] == "completed" and job["result"]:
+        response["result"] = job["result"]
+    if job["status"] == "failed":
+        response["error"] = job["error"]
+
+    return response
+
+
+async def _run_lokmat_scrape_job(job_id: str, edition_name: str, date_value: str):
+    try:
+        _jobs[job_id]["status"] = "processing"
+
+        result = await scrape_lokmat_times_edition(
+            edition=edition_name,
+            date_value=date_value,
+            base_dir=BASE_DIR,
+            reader=reader,
+            keywords=get_news_keywords(),
+            newspaper_name="Lokmat Times",
+        )
+
+        payload = result["result"]
+        _jobs[job_id]["status"] = "completed"
+        _jobs[job_id]["result"] = payload
+        _jobs[job_id]["progress"] = {
+            "current_page": payload.get("pages_scanned", 0),
+            "total_pages": payload.get("total_pages_detected", 0),
+            "words_extracted": sum(
+                len(article.get("article_text", "").split())
+                for article in payload.get("results", [])
+            ),
+        }
+    except Exception as exc:
+        _jobs[job_id]["status"] = "failed"
+        _jobs[job_id]["error"] = str(exc)
 
 
 @app.get("/documents")
@@ -389,20 +488,21 @@ async def get_documents():
 
 @app.post("/search-all")
 async def search_all(request: SearchRequest):
-    keyword = request.keyword.strip().lower()
-    if not keyword:
-        raise HTTPException(status_code=400, detail="Keyword cannot be empty")
-
+    keywords = get_news_keywords()
     results = []
     for file in DATA_DIR.glob("*.json"):
         with file.open("r", encoding="utf-8") as f:
             ocr_entries = json.load(f)
 
-        matches = [
-            entry
-            for entry in ocr_entries
-            if keyword in str(entry.get("text", "")).lower()
-        ]
+        matches = []
+        for entry in ocr_entries:
+            matched_keyword = first_matching_keyword(str(entry.get("text", "")), keywords)
+            if not matched_keyword:
+                continue
+            matches.append({
+                **entry,
+                "matched_keyword": matched_keyword,
+            })
 
         if matches:
             results.append({
@@ -412,7 +512,8 @@ async def search_all(request: SearchRequest):
             })
 
     return {
-        "keyword": request.keyword,
+        "keyword": "predefined keyword set",
+        "keywords": list(keywords),
         "documents_found": len(results),
         "results": results,
     }

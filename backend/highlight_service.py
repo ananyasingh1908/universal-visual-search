@@ -3,6 +3,10 @@ import re
 from pathlib import Path
 
 import cv2
+from news_keywords import (
+    first_matching_keyword,
+    keyword_matches_any_text,
+)
 
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp")
 
@@ -19,9 +23,46 @@ class ImageReadError(Exception):
     pass
 
 
+def _normalize_text(value: str) -> str:
+    return " ".join(str(value).split()).strip()
+
+
+def keyword_matches_text(text: str, keyword: str) -> bool:
+    normalized_text = _normalize_text(text).casefold()
+    normalized_keyword = _normalize_text(keyword).casefold()
+
+    if not normalized_text or not normalized_keyword:
+        return False
+
+    if " " in normalized_keyword:
+        return normalized_keyword in normalized_text
+
+    pattern = rf"(?<!\w){re.escape(normalized_keyword)}(?!\w)"
+    if re.search(pattern, normalized_text) is not None:
+        return True
+
+    compact_text = re.sub(r"[\s\-]+", "", normalized_text)
+    compact_keyword = re.sub(r"[\s\-]+", "", normalized_keyword)
+    return bool(compact_keyword) and compact_keyword in compact_text
+
+
 def highlight_keyword(
     document_id: str,
     keyword: str,
+    base_dir: Path,
+    page_number: int | None = None,
+) -> dict:
+    return highlight_keywords(
+        document_id,
+        [keyword],
+        base_dir,
+        page_number=page_number,
+    )
+
+
+def highlight_keywords(
+    document_id: str,
+    keywords: list[str],
     base_dir: Path,
     page_number: int | None = None,
 ) -> dict:
@@ -35,11 +76,10 @@ def highlight_keyword(
     with document_path.open("r", encoding="utf-8") as f:
         ocr_entries = json.load(f)
 
-    keyword_lower = keyword.lower()
     all_matches = [
         entry
         for entry in ocr_entries
-        if keyword_lower in str(entry.get("text", "")).lower()
+        if keyword_matches_any_text(str(entry.get("text", "")), keywords)
     ]
 
     if not all_matches:
@@ -74,15 +114,24 @@ def highlight_keyword(
         _draw_bbox(image, entry.get("bbox", []))
 
     outputs_dir.mkdir(parents=True, exist_ok=True)
-    page_suffix = f"_p{target_page}" if target_page != 1 or _has_page_numbered_screenshots(document_id, base_dir) else ""
-    output_name = f"{document_id}{page_suffix}_{_safe_filename_part(keyword)}.png"
+    page_suffix = (
+        f"_p{target_page}"
+        if target_page != 1 or _has_page_numbered_screenshots(document_id, base_dir)
+        else ""
+    )
+    matched_keyword = first_matching_keyword(
+        str(page_matches[0].get("text", "")),
+        keywords,
+    ) or "keywords"
+    output_name = f"{document_id}{page_suffix}_{_safe_filename_part(matched_keyword)}.png"
     output_path = outputs_dir / output_name
     cv2.imwrite(str(output_path), image)
 
     return {
-        "highlighted_image_url": f"http://127.0.0.1:8000/outputs/{output_path.name}",
+        "highlighted_image_url": f"http://127.0.0.1:8001/outputs/{output_path.name}",
         "total_matches": len(page_matches),
         "page_number": target_page,
+        "matched_keyword": matched_keyword,
     }
 
 
