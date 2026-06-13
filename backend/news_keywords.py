@@ -34,7 +34,6 @@ def _unique_keywords(keywords: Iterable[str]) -> tuple[str, ...]:
 class _NewsKeywordCatalog:
     ENGLISH_BLOCK = """
 electricity
-Sports
 electrical
 power generation
 power transmission

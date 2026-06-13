@@ -1,0 +1,212 @@
+{
+  "newspapers": [
+    {
+      "id": "lokmat-nagpur-main",
+      "name": "Lokmat Nagpur Main",
+      "edition": "Nagpur Main",
+      "source_type": "epaper",
+      "base_url": "https://epaper.lokmat.com/main-editions/Nagpur%20Main/",
+      "date_format": "YYYY-MM-DD",
+      "page_format": "{base_url}{date}/{page_number}",
+      "requires_discovery": false,
+      "verification_status": "verified",
+      "verification_notes": "URL structure verified: base URL supports static date and page number patterns. Example: https://epaper.lokmat.com/main-editions/Nagpur%20Main/2026-06-08/1. Navigation uses direct URL construction with no discovery required.",
+      "sample_urls": [
+        "https://epaper.lokmat.com/main-editions/Nagpur%20Main/2026-06-08/1",
+        "https://epaper.lokmat.com/main-editions/Nagpur%20Main/-1/1"
+      ]
+    },
+    {
+      "id": "lokmat-hello-nagpur",
+      "name": "Lokmat Hello Nagpur",
+      "edition": "Hello Nagpur",
+      "source_type": "epaper",
+      "base_url": "https://epaper.lokmat.com/sub-editions/Hello%20Nagpur/",
+      "date_format": "YYYY-MM-DD",
+      "page_format": "{base_url}{date}/{page_number}",
+      "requires_discovery": false,
+      "verification_status": "verified",
+      "verification_notes": "URL structure verified: base URL supports static date and page number patterns. Example: https://epaper.lokmat.com/sub-editions/Hello%20Nagpur/2026-06-08/1. Navigation uses direct URL construction with no discovery required.",
+      "sample_urls": [
+        "https://epaper.lokmat.com/sub-editions/Hello%20Nagpur/2026-06-08/1",
+        "https://epaper.lokmat.com/sub-editions/Hello%20Nagpur/-1/1"
+      ]
+    },
+    {
+      "id": "lokmat-hello-wardha",
+      "name": "Lokmat Hello Wardha",
+      "edition": "Hello Wardha",
+      "source_type": "epaper",
+      "base_url": "https://epaper.lokmat.com/sub-editions/Hello%20Wardha/",
+      "date_format": "YYYY-MM-DD",
+      "page_format": "{base_url}{date}/{page_number}",
+      "requires_discovery": false,
+      "verification_status": "verified",
+      "verification_notes": "URL structure verified: base URL supports static date and page number patterns. Example: https://epaper.lokmat.com/sub-editions/Hello%20Wardha/2026-06-08/1. Navigation uses direct URL construction with no discovery required.",
+      "sample_urls": [
+        "https://epaper.lokmat.com/sub-editions/Hello%20Wardha/2026-06-08/1",
+        "https://epaper.lokmat.com/sub-editions/Hello%20Wardha/-1/1"
+      ]
+    },
+    {
+      "id": "lokmat-samachar-nagpur",
+      "name": "Lokmat Samachar Nagpur",
+      "edition": "Nagpur",
+      "source_type": "epaper",
+      "base_url": "https://epaper.lokmat.com/lokmatsamachar/home.php",
+      "date_format": "YYYY-MM-DD",
+      "page_format": "{base_url}?edition={edition}&date={date}&pageno={page_number}",
+      "requires_discovery": true,
+      "verification_status": "verified",
+      "verification_notes": "URL structure verified: homepage requires query parameter discovery. Example: https://epaper.lokmat.com/lokmatsamachar/home.php?edition=Nagpur&date=2026-06-08&pageno=1. Navigation requires parameter discovery rather than direct URL construction.",
+      "sample_urls": [
+        "https://epaper.lokmat.com/lokmatsamachar/home.php?edition=Nagpur&date=2026-06-08&pageno=1",
+        "https://epaper.lokmat.com/lokmatsamachar/home.php?edition=Nagpur&date=-1&pageno=1"
+      ]
+    },
+    {
+      "id": "lokmat-samachar-apna-nagpur",
+      "name": "Lokmat Samachar Apna Nagpur",
+      "edition": "Apna Nagpur",
+      "source_type": "epaper",
+      "base_url": "https://epaper.lokmat.com/lokmatsamachar/sub-editions/Apna%20Nagpur/",
+      "date_format": "YYYY-MM-DD",
+      "page_format": "{base_url}{date}/{page_number}",
+      "requires_discovery": false,
+      "verification_status": "verified",
+      "verification_notes": "URL structure verified: base URL supports static date and page number patterns. Example: https://epaper.lokmat.com/lokmatsamachar/sub-editions/Apna%20Nagpur/2026-06-08/1. Navigation uses direct URL construction with no discovery required.",
+      "sample_urls": [
+        "https://epaper.lokmat.com/lokmatsamachar/sub-editions/Apna%20Nagpur/2026-06-08/1",
+        "https://epaper.lokmat.com/lokmatsamachar/sub-editions/Apna%20Nagpur/-1/1"
+      ]
+    },
+    {
+      "id": "lokmat-samachar-apna-vidarbha",
+      "name": "Lokmat Samachar Apna Vidarbha",
+      "edition": "Apna Vidarbha",
+      "source_type": "epaper",
+      "base_url": "https://epaper.lokmat.com/lokmatsamachar/sub-editions/Apna%20Vidarbha/",
+      "date_format": "YYYY-MM-DD",
+      "page_format": "{base_url}{date}/{page_number}",
+      "requires_discovery": false,
+      "verification_status": "verified",
+      "verification_notes": "URL structure verified: base URL supports static date and page number patterns. Example: https://epaper.lokmat.com/lokmatsamachar/sub-editions/Apna%20Vidarbha/2026-06-08/1. Navigation uses direct URL construction with no discovery required.",
+      "sample_urls": [
+        "https://epaper.lokmat.com/lokmatsamachar/sub-editions/Apna%20Vidarbha/2026-06-08/1",
+        "https://epaper.lokmat.com/lokmatsamachar/sub-editions/Apna%20Vidarbha/-1/1"
+      ]
+    },
+    {
+      "id": "the-hitavada",
+      "name": "The Hitavada",
+      "edition": "Nagpur",
+      "source_type": "epaper",
+      "base_url": "https://www.ehitavada.com/",
+      "date_format": "YYYY-MM-DD",
+      "page_format": "{base_url}index.php?date={date}&edition={edition}&page={page_number}",
+      "requires_discovery": false,
+      "verification_status": "unverified",
+      "verification_notes": "PARTIAL VERIFICATION: Base URL exists but actual epaper access requires subscription authentication. Found reference URLs but unable to verify direct epaper access patterns due to subscription restrictions. Navigation exists via query parameters but actual content access blocked.",
+      "sample_urls": [
+        "https://www.ehitavada.com/index.php?date=2025-03-27&edition=Mpage&page=1",
+        "https://www.ehitavada.com/index.php?date=2019-03-19&edition=Mpage&page=1"
+      ]
+    },
+    {
+      "id": "the-hitavada-cityline",
+      "name": "The Hitavada Cityline",
+      "edition": "Nagpur City Line",
+      "source_type": "epaper",
+      "base_url": "https://www.ehitavada.com/",
+      "date_format": "YYYY-MM-DD",
+      "page_format": "{base_url}index.php?date={date}&edition={edition}&page={page_number}",
+      "requires_discovery": false,
+      "verification_status": "unverified",
+      "verification_notes": "PARTIAL VERIFICATION: Base URL exists but actual epaper access requires subscription authentication. City Line edition exists in the selection dropdown but cannot verify direct URL patterns due to subscription restrictions.",
+      "sample_urls": [
+        "https://www.ehitavada.com/index.php?date=2025-03-27&edition=Mpage&page=1",
+        "https://www.ehitavada.com/index.php?date=2019-03-19&edition=Insightpage&page=1"
+      ]
+    },
+    {
+      "id": "the-hitavada-vidarbha-line",
+      "name": "The Hitavada Vidarbha Line",
+      "edition": "Vidarbha Line",
+      "source_type": "epaper",
+      "base_url": "https://www.ehitavada.com/",
+      "date_format": "YYYY-MM-DD",
+      "page_format": "{base_url}index.php?date={date}&edition={edition}&page={page_number}",
+      "requires_discovery": false,
+      "verification_status": "unverified",
+      "verification_notes": "PARTIAL VERIFICATION: Base URL exists but actual epaper access requires subscription authentication. Vidarbha Line edition exists in the selection dropdown but cannot verify direct URL patterns due to subscription restrictions.",
+      "sample_urls": [
+        "https://www.ehitavada.com/index.php?date=2025-03-27&edition=Mpage&page=1",
+        "https://www.ehitavada.com/index.php?date=2023-01-08&edition=Insightpage&page=1"
+      ]
+    },
+    {
+      "id": "times-of-india-nagpur",
+      "name": "Times of India Nagpur",
+      "edition": "Nagpur",
+      "source_type": "epaper",
+      "base_url": "https://epaper.indiatimes.com/timesepaper/publication-the-times-of-india,city-nagpur.cms",
+      "date_format": "YYYY-MM-DD",
+      "page_format": "{base_url}?date={date}",
+      "requires_discovery": true,
+      "verification_status": "verified",
+      "verification_notes": "URL structure verified: requires date parameter. Example: https://epaper.indiatimes.com/timesepaper/publication-the-times-of-india,city-nagpur.cms?date=2026-06-08. Navigation requires direct URL construction with date parameter.",
+      "sample_urls": [
+        "https://epaper.indiatimes.com/timesepaper/publication-the-times-of-india,city-nagpur.cms?date=2026-06-08",
+        "https://epaper.indiatimes.com/timesepaper/publication-the-times-of-india,city-nagpur.cms?date=2026-06-05"
+      ]
+    },
+    {
+      "id": "maharashtra-times-nagpur",
+      "name": "Maharashtra Times Nagpur",
+      "edition": "Nagpur",
+      "source_type": "epaper",
+      "base_url": "https://epaper.indiatimes.com/timesepaper/publication-maharashtra-times,city-mumbai.cms",
+      "date_format": "YYYY-MM-DD",
+      "page_format": "{base_url}?date={date}",
+      "requires_discovery": true,
+      "verification_status": "verified",
+      "verification_notes": "URL structure verified: requires date parameter. Example: https://epaper.indiatimes.com/timesepaper/publication-maharashtra-times,city-mumbai.cms?date=2026-06-08. Navigation requires direct URL construction with date parameter.",
+      "sample_urls": [
+        "https://epaper.indiatimes.com/timesepaper/publication-maharashtra-times,city-mumbai.cms?date=2026-06-08",
+        "https://epaper.indiatimes.com/timesepaper/publication-maharashtra-times,city-mumbai.cms?date=2026-06-05"
+      ]
+    },
+    {
+      "id": "maharashtra-times-nagpur-plus",
+      "name": "Maharashtra Times Nagpur Plus",
+      "edition": "Nagpur Plus",
+      "source_type": "epaper",
+      "base_url": "https://epaper.indiatimes.com/timesepaper/publication-maharashtra-times,city-mumbai.cms",
+      "date_format": "YYYY-MM-DD",
+      "page_format": "{base_url}?date={date}",
+      "requires_discovery": true,
+      "verification_status": "verified",
+      "verification_notes": "URL structure verified: uses same base URL pattern as Maharashtra Times Nagpur but different edition parameter. Example: https://epaper.indiatimes.com/timesepaper/publication-maharashtra-times,city-mumbai.cms?date=2026-06-08. Navigation requires parameter discovery.",
+      "sample_urls": [
+        "https://epaper.indiatimes.com/timesepaper/publication-maharashtra-times,city-mumbai.cms?date=2026-06-08",
+        "https://epaper.indiatimes.com/timesepaper/publication-maharashtra-times,city-mumbai.cms?date=2026-06-05"
+      ]
+    },
+    {
+      "id": "loksatta-nagpur",
+      "name": "Loksatta Nagpur",
+      "edition": "Nagpur",
+      "source_type": "epaper",
+      "base_url": "https://epaper.loksatta.com/t/8490/Nagpur",
+      "date_format": "DD-MM-YYYY",
+      "page_format": "{base_url}/{date}",
+      "requires_discovery": false,
+      "verification_status": "verified",
+      "verification_notes": "URL structure verified: static pattern with date in DD-MM-YYYY format. Example: https://epaper.loksatta.com/t/8490/Nagpur/09-03-2026. Navigation uses direct URL construction with no discovery required.",
+      "sample_urls": [
+        "https://epaper.loksatta.com/t/8490/Nagpur/09-03-2026",
+        "https://epaper.loksatta.com/t/8490/Nagpur/latest"
+      ]
+    }
+  ]
+}
