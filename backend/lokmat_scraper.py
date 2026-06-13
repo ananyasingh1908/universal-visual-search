@@ -18,8 +18,8 @@ from news_keywords import (
 )
 from ocr_service import run_ocr, save_ocr_output, summarize_headline
 
-SCREENSHOT_BASE_URL = "http://127.0.0.1:8001/screenshots"
-OUTPUT_BASE_URL = "http://127.0.0.1:8001/outputs"
+SCREENSHOT_BASE_URL = "http://127.0.0.1:8000/screenshots"
+OUTPUT_BASE_URL = "http://127.0.0.1:8000/outputs"
 MAX_PAGES = 300
 
 

@@ -128,7 +128,7 @@ def highlight_keywords(
     cv2.imwrite(str(output_path), image)
 
     return {
-        "highlighted_image_url": f"http://127.0.0.1:8001/outputs/{output_path.name}",
+        "highlighted_image_url": f"http://127.0.0.1:8000/outputs/{output_path.name}",
         "total_matches": len(page_matches),
         "page_number": target_page,
         "matched_keyword": matched_keyword,

@@ -1,4 +1,6 @@
 import asyncio
+import logging
+import os
 import sys
 import json
 from pathlib import Path
@@ -6,11 +8,6 @@ from urllib.parse import urlparse, urlencode, parse_qs, urlunparse
 from uuid import UUID, uuid4
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(
-        asyncio.WindowsProactorEventLoopPolicy()
-    )
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from playwright.async_api import async_playwright
@@ -33,6 +30,26 @@ from ocr_service import (
 )
 
 app = FastAPI()
+
+@app.on_event("startup")
+async def startup_event():
+    policy = asyncio.get_event_loop_policy()
+    # Log event loop policy and whether subprocess support exists
+    print("startup loop policy", type(policy).__name__, policy)
+    loop = asyncio.get_running_loop()
+    print("startup loop type", type(loop).__name__)
+    print("startup supports subprocess", hasattr(loop, "subprocess_exec"))
+
+    # Configure basic logging if not already configured
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("backend.startup")
+
+    api_key = os.getenv("GOOGLE_CLOUD_VISION_API_KEY", "").strip()
+    if api_key:
+        logger.info("Google Vision API key detected in environment")
+        logger.info("OCR requests will be sent to Google Vision API")
+    else:
+        logger.warning("Google Vision API key NOT found; falling back to EasyOCR")
 
 app.add_middleware(
     CORSMiddleware,
@@ -60,7 +77,7 @@ OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/outputs", StaticFiles(directory=OUTPUTS_DIR), name="outputs")
 app.mount("/screenshots", StaticFiles(directory=SCREENSHOTS_DIR), name="screenshots")
 
-SCREENSHOT_BASE_URL = "http://127.0.0.1:8001/screenshots"
+SCREENSHOT_BASE_URL = "http://127.0.0.1:8000/screenshots"
 OUTPUT_BASE_URL = "/outputs"
 
 
@@ -265,7 +282,7 @@ async def scan_website(request: WebsiteScanRequest):
     }
 
     asyncio.create_task(_run_scan_job(job_id, request.url))
-
+    
     return {"job_id": job_id, "status": "pending"}
 
 
@@ -292,8 +309,14 @@ async def _run_scan_job(job_id: str, url: str):
     document_id = str(uuid4())
     SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
+    import asyncio
     try:
         _jobs[job_id]["status"] = "processing"
+
+        print("=== PLAYWRIGHT DEBUG ===")
+        print("POLICY:", type(asyncio.get_event_loop_policy()).__name__)
+        print("LOOP:", type(asyncio.get_running_loop()).__name__)
+        print("========================")
 
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(headless=True)
@@ -490,6 +513,13 @@ async def get_documents():
 async def search_all(request: SearchRequest):
     keywords = get_news_keywords()
     results = []
+    print("OCR RESULTS COUNT:", len(results))
+
+    all_text = " ".join([r[1] for r in results if len(r) > 1])
+
+    print("Total OCR text length:", len(all_text))
+    print("First 500 chars:")
+    print(all_text[:500])
     for file in DATA_DIR.glob("*.json"):
         with file.open("r", encoding="utf-8") as f:
             ocr_entries = json.load(f)

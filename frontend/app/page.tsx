@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import { cn } from "@/lib/utils";
 
-const API_BASE = "http://127.0.0.1:8001";
+const API_BASE = "http://127.0.0.1:8000";
 
 type Newspaper = {
   name: string;

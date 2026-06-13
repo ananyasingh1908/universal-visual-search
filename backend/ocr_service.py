@@ -7,32 +7,47 @@ from statistics import median
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+import logging
 import cv2
 import numpy as np
+
+try:
+    from dotenv import load_dotenv
+except Exception:
+    load_dotenv = None
 
 LOCAL_ENV_PATH = Path(__file__).resolve().parent / ".env"
 VISION_API_URL = "https://vision.googleapis.com/v1/images:annotate"
 
+# Configure module logger
+logger = logging.getLogger("ocr_service")
 
-def _load_local_env_file() -> None:
-    if not LOCAL_ENV_PATH.is_file():
-        return
+# Load .env via python-dotenv if available, otherwise fall back to simple loader
+if load_dotenv is not None:
+    try:
+        load_dotenv(LOCAL_ENV_PATH)
+        logger.debug("Loaded .env via python-dotenv: %s", LOCAL_ENV_PATH)
+    except Exception:
+        logger.exception("Failed to load .env using python-dotenv")
+else:
+    # minimal fallback: only set vars that are not already in the environment
+    if LOCAL_ENV_PATH.is_file():
+        try:
+            with LOCAL_ENV_PATH.open("r", encoding="utf-8") as f:
+                for raw_line in f:
+                    line = raw_line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
 
-    with LOCAL_ENV_PATH.open("r", encoding="utf-8") as f:
-        for raw_line in f:
-            line = raw_line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
+                    key, value = line.split("=", 1)
+                    key = key.strip()
+                    if not key or key in os.environ:
+                        continue
 
-            key, value = line.split("=", 1)
-            key = key.strip()
-            if not key or key in os.environ:
-                continue
-
-            os.environ[key] = value.strip().strip('"').strip("'")
-
-
-_load_local_env_file()
+                    os.environ[key] = value.strip().strip('"').strip("'")
+            logger.debug("Loaded .env via fallback loader: %s", LOCAL_ENV_PATH)
+        except Exception:
+            logger.exception("Failed to load .env fallback loader")
 
 
 def run_ocr(reader, image_path: Path, page_number: int = 1) -> list[dict]:
@@ -41,16 +56,30 @@ def run_ocr(reader, image_path: Path, page_number: int = 1) -> list[dict]:
         raise ValueError(f"Could not read image: {image_path}")
 
     vision_api_key = _get_google_vision_api_key()
-    if vision_api_key:
-        detections = _collect_google_vision_detections(
-            image_path, page_number, vision_api_key
-        )
-    else:
-        detections = _collect_easyocr_detections(reader, image, page_number)
+    using_vision = bool(vision_api_key)
+    logger.info("run_ocr: image=%s page=%s using_google_vision=%s", image_path, page_number, using_vision)
+
+    try:
+        if using_vision:
+            detections = _collect_google_vision_detections(
+                image_path, page_number, vision_api_key
+            )
+        else:
+            detections = _collect_easyocr_detections(reader, image, page_number)
+    except Exception:
+        logger.exception("OCR backend failed for image=%s", image_path)
+        raise
 
     merged = _merge_detections(detections)
     _mark_headlines(merged, image.shape)
-    return _finalize_entries(merged)
+    finalized = _finalize_entries(merged)
+    try:
+        all_text = " ".join(entry.get("text", "") for entry in finalized)
+        logger.info("OCR result entries=%d total_text_length=%d", len(finalized), len(all_text))
+        logger.debug("OCR preview: %s", (all_text or "")[:200])
+    except Exception:
+        logger.exception("Failed to log OCR text preview")
+    return finalized
 
 
 def save_ocr_output(document_id: str, ocr_entries: list[dict], data_dir: Path) -> Path:
@@ -108,7 +137,7 @@ def process_image_document(reader, image_path: Path, document_id: str, data_dir:
 
 def _get_google_vision_api_key() -> str:
     return os.getenv("GOOGLE_CLOUD_VISION_API_KEY", "").strip()
-
+    print("API KEY FOUND:", bool(os.getenv("GOOGLE_CLOUD_VISION_API_KEY")))
 
 @lru_cache(maxsize=1)
 def _get_easyocr_reader():
@@ -120,6 +149,7 @@ def _get_easyocr_reader():
 def _collect_easyocr_detections(reader, image, page_number: int) -> list[dict]:
     detections: list[dict] = []
     ocr_reader = reader or _get_easyocr_reader()
+    logger.warning("Using EasyOCR fallback for OCR (Google Vision key not present or failed)")
 
     for variant_name, variant_image, settings in _build_image_variants(image):
         try:
@@ -202,9 +232,17 @@ def _call_google_vision_api(image_bytes: bytes, api_key: str) -> dict:
         method="POST",
     )
 
+    logger.debug("Calling Google Vision API; payload_size=%d bytes", len(image_bytes))
     try:
         with urlopen(request, timeout=60) as response:
-            response_payload = json.loads(response.read().decode("utf-8"))
+            raw = response.read()
+            response_payload = json.loads(raw.decode("utf-8"))
+            try:
+                ft = response_payload.get("responses", [{}])[0].get("fullTextAnnotation", {}).get("text", "")
+                logger.info("Google Vision returned text length=%d", len(ft))
+                logger.debug("Google Vision first 200 chars: %s", (ft or '')[:200])
+            except Exception:
+                logger.debug("Could not parse fullTextAnnotation for logging")
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(
