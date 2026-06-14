@@ -1,8 +1,8 @@
 [
   {
-    "name": "Lokmat Nagpur",
+    "name": "Navbharat Nagpur Plus",
     "verified_by_user": true,
-    "sample_url": "https://epaper.lokmat.com/main-editions/Nagpur%20Main/2026-06-13/1",
+    "sample_url": "https://epaper.navbharatlive.com/nagpur/nagpurplus/2026-06-11/1",
     "url_type": "path",
     "date_format": "YYYY-MM-DD",
     "page_format": "integer",
@@ -12,6 +12,7 @@
     "edition_location": "path_segment",
     "supports_date_substitution": true,
     "supports_page_substitution": true,
+    "supports_page_probing": true,
     "confidence": "high"
   },
   {
@@ -27,6 +28,7 @@
     "edition_location": "path_segment",
     "supports_date_substitution": true,
     "supports_page_substitution": true,
+    "supports_page_probing": true,
     "confidence": "high"
   },
   {
@@ -42,6 +44,7 @@
     "edition_location": "path_segment",
     "supports_date_substitution": true,
     "supports_page_substitution": true,
+    "supports_page_probing": true,
     "confidence": "high"
   },
   {
@@ -72,6 +75,7 @@
     "edition_location": "path_segment",
     "supports_date_substitution": true,
     "supports_page_substitution": true,
+    "supports_page_probing": true,
     "confidence": "medium"
   },
   {
@@ -87,6 +91,7 @@
     "edition_location": "path_segment",
     "supports_date_substitution": true,
     "supports_page_substitution": true,
+    "supports_page_probing": true,
     "confidence": "high"
   },
   {
@@ -147,6 +152,7 @@
     "edition_location": "path_segment",
     "supports_date_substitution": true,
     "supports_page_substitution": true,
+    "supports_page_probing": true,
     "confidence": "high"
   },
   {
@@ -162,6 +168,7 @@
     "edition_location": "path_segment",
     "supports_date_substitution": true,
     "supports_page_substitution": true,
+    "supports_page_probing": true,
     "confidence": "high"
   },
   {
@@ -177,6 +184,7 @@
     "edition_location": "path_segment",
     "supports_date_substitution": true,
     "supports_page_substitution": true,
+    "supports_page_probing": true,
     "confidence": "high"
   },
   {
@@ -222,6 +230,7 @@
     "edition_location": "path_segment",
     "supports_date_substitution": true,
     "supports_page_substitution": true,
+    "supports_page_probing": true,
     "confidence": "high"
   },
   {
@@ -237,6 +246,7 @@
     "edition_location": "path_segment",
     "supports_date_substitution": true,
     "supports_page_substitution": true,
+    "supports_page_probing": true,
     "confidence": "high"
   },
   {
@@ -252,6 +262,7 @@
     "edition_location": "path_segment",
     "supports_date_substitution": true,
     "supports_page_substitution": true,
+    "supports_page_probing": true,
     "confidence": "high"
   },
   {
@@ -335,6 +346,66 @@
     "sample_url": "https://epaper.deshonnati.com/edition/Nagpur/DESHONATI_NAGP/DESHONATI_NAGP_20260613/page/1",
     "url_type": "path",
     "date_format": "YYYYMMDD",
+    "page_format": "integer",
+    "edition_format": "path_segment",
+    "date_location": "path_segment",
+    "page_location": "path_segment",
+    "edition_location": "path_segment",
+    "supports_date_substitution": true,
+    "supports_page_substitution": true,
+    "confidence": "high"
+  },
+  {
+    "name": "Deshonnati",
+    "verified_by_user": true,
+    "sample_url": "https://epaper.deshonnati.com/edition/Nagpur/DESHONATI_NAGP/DESHONATI_NAGP_20260613/page/1",
+    "url_type": "path",
+    "date_format": "YYYYMMDD",
+    "page_format": "integer",
+    "edition_format": "path_segment",
+    "date_location": "path_segment",
+    "page_location": "path_segment",
+    "edition_location": "path_segment",
+    "supports_date_substitution": true,
+    "supports_page_substitution": true,
+    "confidence": "high"
+  },
+  {
+    "name": "Navbharat Nagpur",
+    "verified_by_user": true,
+    "sample_url": "https://epaper.navbharatlive.com/nagpur/nagpur/2026-06-13/1",
+    "url_type": "path",
+    "date_format": "YYYY-MM-DD",
+    "page_format": "integer",
+    "edition_format": "path_segment",
+    "date_location": "path_segment",
+    "page_location": "path_segment",
+    "edition_location": "path_segment",
+    "supports_date_substitution": true,
+    "supports_page_substitution": true,
+    "confidence": "high"
+  },
+  {
+    "name": "Navbharat Nagpur Plus",
+    "verified_by_user": true,
+    "sample_url": "https://epaper.navbharatlive.com/nagpur/nagpurplus/2026-06-11/1",
+    "url_type": "path",
+    "date_format": "YYYY-MM-DD",
+    "page_format": "integer",
+    "edition_format": "path_segment",
+    "date_location": "path_segment",
+    "page_location": "path_segment",
+    "edition_location": "path_segment",
+    "supports_date_substitution": true,
+    "supports_page_substitution": true,
+    "confidence": "high"
+  },
+  {
+    "name": "Navbharat",
+    "verified_by_user": true,
+    "sample_url": "https://epaper.navbharatlive.com/nagpur/nagpur/2026-06-13/1",
+    "url_type": "path",
+    "date_format": "YYYY-MM-DD",
     "page_format": "integer",
     "edition_format": "path_segment",
     "date_location": "path_segment",

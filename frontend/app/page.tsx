@@ -28,45 +28,32 @@ type DistrictAvailability = {
   availability: Record<NewspaperColumn, boolean>;
 };
 
-const NEWSPAPERS: Record<Newspaper["language"], Newspaper[]> = {
+const VERIFIED_NEWSPAPERS: Record<Newspaper["language"], Newspaper[]> = {
   English: [
     { name: "The Hitavada", language: "English", columnKey: "Hitavada" },
     { name: "The Hitavada City Line", language: "English", columnKey: "Hitavada" },
     { name: "The Hitavada Vidarbha Line", language: "English", columnKey: "Hitavada" },
     { name: "Times of India Nagpur", language: "English" },
-    { name: "Nagpur Post", language: "English" },
-    { name: "Lokmat Times", language: "English", columnKey: "MTimes" },
-    { name: "Economic Times", language: "English" },
   ],
   Hindi: [
     { name: "Lokmat Samachar", language: "Hindi" },
     { name: "Lokmat Samachar Apna Nagpur", language: "Hindi" },
     { name: "Lokmat Samachar Apna Vidarbha", language: "Hindi" },
-    { name: "Dainik Bhaskar", language: "Hindi", columnKey: "DBhaskar" },
     { name: "Navbharat", language: "Hindi", columnKey: "Navbharat" },
-    { name: "Vidarbha ki baat", language: "Hindi" },
-    { name: "Nagpur Metro Samachar", language: "Hindi" },
-    { name: "Rashtra Prakash", language: "Hindi" },
+    { name: "Navbharat Nagpur Plus", language: "Hindi", columnKey: "Navbharat" },
   ],
   Marathi: [
     { name: "Lokmat Nagpur", language: "Marathi", columnKey: "Lokmat" },
     { name: "Lokmat Hello Nagpur", language: "Marathi", columnKey: "Lokmat" },
     { name: "Lokmat Hello Wardha", language: "Marathi", columnKey: "Lokmat" },
-    { name: "Loksatta Nagpur", language: "Marathi", columnKey: "Loksatta" },
-    { name: "Maharashtra Times", language: "Marathi", columnKey: "MTimes" },
     { name: "Maharashtra Times Nagpur", language: "Marathi", columnKey: "MTimes" },
     { name: "Maharashtra Times Nagpur Plus", language: "Marathi", columnKey: "MTimes" },
-    { name: "Lokshahi Varta", language: "Marathi" },
-    { name: "Sakal", language: "Marathi", columnKey: "Sakal" },
-    { name: "Lok Vahini", language: "Marathi" },
+    { name: "Navarashtra", language: "Marathi" },
+    { name: "Lokvahini", language: "Marathi" },
+    { name: "Lokshahi Varta Edition 11", language: "Marathi" },
+    { name: "Lokshahi Varta Edition 16", language: "Marathi" },
     { name: "Deshonnati", language: "Marathi", columnKey: "Deshonnati" },
-    { name: "Punya Nagari", language: "Marathi", columnKey: "PNagari" },
-    { name: "Tarun Bharat", language: "Marathi" },
-    { name: "Nav Rashtra", language: "Marathi" },
-    { name: "Bhandara Patrika", language: "Marathi" },
-    { name: "Jansangtam", language: "Marathi" },
-    { name: "Mahasagar", language: "Marathi" },
-    { name: "Youa Rashtra Darshan", language: "Marathi" },
+    { name: "Loksatta Nagpur", language: "Marathi", columnKey: "Loksatta" },
   ],
 };
 
@@ -663,6 +650,10 @@ export default function Home() {
   const [selectedNewspaper, setSelectedNewspaper] = useState<Newspaper | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>("");
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = () => {
@@ -671,6 +662,67 @@ export default function Home() {
       pollRef.current = null;
     }
   };
+
+  const getDaysInMonth = (year: number, month: number) => {
+    return new Date(year, month + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (year: number, month: number) => {
+    return new Date(year, month, 1).getDay();
+  };
+
+  const navigateCalendarMonth = (direction: number) => {
+    setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + direction, 1));
+  };
+
+  const selectDate = (date: string) => {
+    setSelectedDate(date);
+    setShowCalendar(false);
+  };
+
+  const handleNewspaperChange = (newspaperName: string) => {
+    const newspaper = Object.values(VERIFIED_NEWSPAPERS).flat().find(n => n.name === newspaperName);
+    if (newspaper) {
+      setSelectedNewspaper(newspaper);
+      setSelectedRegion("");
+      setShowDropdown(false);
+      setSearchTerm("");
+    }
+  };
+
+  const openCalendar = () => {
+    setShowCalendar(true);
+  };
+
+  const filteredNewspapers = Object.entries(VERIFIED_NEWSPAPERS).reduce((acc, [language, newspapers]) => {
+    const filtered = newspapers.filter(newspaper =>
+      newspaper.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    if (filtered.length > 0) {
+      acc[language as keyof typeof VERIFIED_NEWSPAPERS] = filtered;
+    }
+    return acc;
+  }, {} as typeof VERIFIED_NEWSPAPERS);
+
+  const selectedNewspaperName = selectedNewspaper?.name || "";
+
+  const daysInMonth = getDaysInMonth(currentDate.getFullYear(), currentDate.getMonth());
+  const firstDayOfMonth = getFirstDayOfMonth(currentDate.getFullYear(), currentDate.getMonth());
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest(".dropdown-container")) {
+        setShowDropdown(false);
+      }
+      if (!target.closest(".calendar-container") && showCalendar) {
+        setShowCalendar(false);
+      }
+    };
+
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [showCalendar]);
 
   useEffect(() => {
     return () => stopPolling();
@@ -850,11 +902,6 @@ export default function Home() {
     setHeadlineText(pageHeadlines[String(page)] || "");
   };
 
-  const handleNewspaperClick = (newspaper: Newspaper) => {
-    setSelectedNewspaper(newspaper);
-    setSelectedRegion("");
-  };
-
   const selectedColumnKey = selectedNewspaper?.columnKey;
 
   const getRegionAvailable = (district: string) => {
@@ -928,14 +975,81 @@ export default function Home() {
 
       <div className="border p-4 rounded-lg space-y-4">
         <h2 className="font-bold">Select Date</h2>
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          placeholder="YYYY-MM-DD"
-          className="border p-2 w-full"
-          required
-        />
+        <div className="relative calendar-container z-50">
+          <input
+            type="text"
+            value={selectedDate ? new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : ""}
+            placeholder="Select Date"
+            className="border p-2 w-full cursor-pointer dark:text-white dark:bg-gray-800 dark:border-gray-600 relative z-50"
+            onClick={openCalendar}
+            readOnly
+            required
+          />
+          <button
+            type="button"
+            onClick={openCalendar}
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded z-50"
+          >
+            📅
+          </button>
+          {showCalendar && (
+            <div className="absolute top-full mt-2 p-4 bg-white dark:bg-gray-800 border rounded-lg shadow-lg z-50 w-72">
+              <div className="flex justify-between items-center mb-4">
+                <button
+                  onClick={() => navigateCalendarMonth(-1)}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  ←
+                </button>
+                <h3 className="font-semibold">
+                  {currentDate.getFullYear()}/{currentDate.getMonth() + 1}
+                </h3>
+                <button
+                  onClick={() => navigateCalendarMonth(1)}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  →
+                </button>
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                  <div key={day} className="text-center text-xs font-semibold text-gray-600 dark:text-gray-400">
+                    {day}
+                  </div>
+                ))}
+                {Array.from({ length: firstDayOfMonth }, (_, i) => (
+                  <div key={`empty-${i}`} className="text-center p-1"></div>
+                ))}
+                {Array.from({ length: daysInMonth }, (_, i) => {
+                  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), i + 1);
+                  const isSelected = selectedDate === date.toISOString().split('T')[0];
+                  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                  return (
+                    <button
+                      key={i + 1}
+                      onClick={() => selectDate(date.toISOString().split('T')[0])}
+                      className={cn(
+                        "p-2 text-sm rounded hover:bg-blue-50 dark:hover:bg-blue-900/20",
+                        isSelected ? "bg-blue-600 text-white" : "",
+                        isWeekend ? "text-red-600 dark:text-red-400" : ""
+                      )}
+                    >
+                      {i + 1}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={() => setShowCalendar(false)}
+                  className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="border p-4 rounded-lg space-y-4">
@@ -985,36 +1099,59 @@ export default function Home() {
           </p>
         </div>
 
-        {(["English", "Hindi", "Marathi"] as const).map((language) => (
-          <section key={language} className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-800">{language} Newspapers</h3>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              {NEWSPAPERS[language].map((newspaper) => {
-                const isSelected =
-                  selectedNewspaper?.name === newspaper.name &&
-                  selectedNewspaper.language === newspaper.language;
-
-                return (
-                  <button
-                    key={`${newspaper.language}-${newspaper.name}`}
-                    type="button"
-                    onClick={() => handleNewspaperClick(newspaper)}
-                    aria-pressed={isSelected}
-                    className={cn(
-                      "rounded-md border px-3 py-2 text-left text-sm transition-colors",
-                      "hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2",
-                      isSelected
-                        ? "border-gray-900 bg-gray-900 text-white"
-                        : "border-gray-300 bg-white text-gray-800"
-                    )}
-                  >
-                    <span className="block font-medium text-pretty">{newspaper.name}</span>
-                  </button>
-                );
-              })}
+        <div className="dropdown-container relative">
+          <h2 className="font-bold mb-2">Select Newspaper</h2>
+          <div className="relative">
+            <div
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="border p-2 w-full rounded-md cursor-pointer bg-white dark:bg-gray-800 dark:text-white dark:border-gray-600 flex justify-between items-center"
+            >
+              <span className={selectedNewspaperName ? "text-gray-900 dark:text-white" : "text-gray-500 dark:text-gray-400"}>
+                {selectedNewspaperName || "Select Newspaper"}
+              </span>
+              <span className="text-gray-500 dark:text-gray-400">▼</span>
             </div>
-          </section>
-        ))}
+            {showDropdown && (
+              <div className="absolute top-full mt-1 w-full bg-white dark:bg-gray-800 border rounded-md shadow-lg z-50 max-h-60 overflow-y-auto">
+                <div className="p-2 border-b dark:border-gray-700">
+                  <input
+                    type="text"
+                    placeholder="Search newspapers..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full p-2 text-sm border rounded dark:bg-gray-700 dark:text-white dark:border-gray-600"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+                {Object.entries(filteredNewspapers).map(([language, newspapers]) => (
+                  <div key={language}>
+                    <div className="px-3 py-2 text-xs font-semibold text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900">
+                      {language} Newspapers
+                    </div>
+                    {newspapers.map((newspaper) => {
+                      const isSelected =
+                        selectedNewspaper?.name === newspaper.name &&
+                        selectedNewspaper.language === newspaper.language;
+
+                      return (
+                        <div
+                          key={`${newspaper.language}-${newspaper.name}`}
+                          onClick={() => handleNewspaperChange(newspaper.name)}
+                          className={cn(
+                            "px-3 py-2 cursor-pointer text-sm hover:bg-gray-50 dark:hover:bg-gray-700",
+                            isSelected ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400" : "text-gray-800 dark:text-gray-200"
+                          )}
+                        >
+                          {newspaper.name}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="rounded-md border bg-gray-50 p-3 text-sm text-gray-700 space-y-3">
           {selectedNewspaper ? (

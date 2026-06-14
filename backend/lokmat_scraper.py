@@ -10,6 +10,9 @@ from urllib.parse import quote
 from uuid import uuid4
 
 import cv2
+import hashlib
+import io
+import numpy as np
 from playwright.async_api import async_playwright
 
 from news_keywords import (
@@ -75,7 +78,6 @@ async def scrape_lokmat_times_edition(
 
         base_url = None
         page_1_total_pages = 0
-        current_page_number = 1
         pages_scanned = 0
 
         try:
@@ -85,7 +87,20 @@ async def scrape_lokmat_times_edition(
                 date_value=date_value,
             )
 
-            for page_number in range(1, MAX_PAGES + 1):
+            # Probe pages to detect total pages robustly before scanning.
+            probed = await _probe_pages(
+                page=page,
+                base_url=base_url,
+                edition=edition,
+                date_value=date_value,
+                max_probe=MAX_PAGES,
+            )
+            if probed:
+                page_1_total_pages = probed
+
+            # Use probed value when available, otherwise fallback to scanning up to MAX_PAGES
+            max_scan = page_1_total_pages if page_1_total_pages else MAX_PAGES
+            for page_number in range(1, max_scan + 1):
                 page_url = build_lokmat_page_url(
                     base_url,
                     edition,
@@ -102,7 +117,18 @@ async def scrape_lokmat_times_edition(
                 if response.status >= 400:
                     break
 
-                await page.wait_for_timeout(3500)
+                # Wait for images to appear (short, with fallback)
+                try:
+                    await page.wait_for_selector('img.page-image', timeout=6000)
+                except Exception:
+                    await page.wait_for_timeout(1200)
+
+                # Trigger lazy-loading if necessary
+                try:
+                    await page.evaluate("() => { window.scrollTo(0, document.body.scrollHeight/2); }")
+                    await page.wait_for_timeout(500)
+                except Exception:
+                    pass
 
                 if await _looks_like_missing_page(page, page_number):
                     break
@@ -120,7 +146,8 @@ async def scrape_lokmat_times_edition(
                 raw_entries.extend(page_ocr_entries)
                 pages_scanned += 1
 
-                if page_number == 1:
+                # If probing didn't find a total, try the page-detected total on page 1
+                if page_number == 1 and not page_1_total_pages:
                     page_1_total_pages = await _detect_total_pages(page)
 
                 page_results = _extract_matched_articles_from_page(
@@ -137,9 +164,7 @@ async def scrape_lokmat_times_edition(
                 collected_results.extend(page_results)
 
                 if page_1_total_pages and page_number >= page_1_total_pages:
-                    # We still allow page probing to continue when the page count is
-                    # uncertain, but if the site has clearly declared a total and
-                    # we've reached it, we only stop if the next page doesn't load.
+                    # If the page declares a total and we've reached it, verify the next page
                     next_url = build_lokmat_page_url(
                         base_url,
                         edition,
@@ -153,7 +178,10 @@ async def scrape_lokmat_times_edition(
                     )
                     if next_response is None or next_response.status >= 400:
                         break
-                    await page.wait_for_timeout(2500)
+                    try:
+                        await page.wait_for_selector('img.page-image', timeout=6000)
+                    except Exception:
+                        await page.wait_for_timeout(1000)
                     if await _looks_like_missing_page(page, page_number + 1):
                         break
                     continue
@@ -197,7 +225,7 @@ async def _resolve_base_url(page, edition: str, date_value: str) -> str:
         )
         if response is None or response.status >= 400:
             continue
-        await page.wait_for_timeout(3000)
+        await page.wait_for_timeout(8000)
         if await _looks_like_missing_page(page, 1):
             continue
         return base
@@ -303,6 +331,181 @@ async def _detect_total_pages(page) -> int:
         """
     )
 
+
+# --- Fingerprint & probing helpers
+
+def _phash_from_bytes(img_bytes: bytes) -> int:
+    try:
+        arr = np.frombuffer(img_bytes, np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            return 0
+        img = cv2.resize(img, (32, 32), interpolation=cv2.INTER_AREA)
+        dct = cv2.dct(np.float32(img))
+        dct_low = dct[:8, :8]
+        med = float(np.median(dct_low))
+        bits = (dct_low > med).flatten()
+        phash = 0
+        for b in bits:
+            phash = (phash << 1) | int(bool(b))
+        return int(phash)
+    except Exception:
+        return 0
+
+
+def _hamming_distance(a: int, b: int) -> int:
+    return bin((a or 0) ^ (b or 0)).count("1")
+
+
+def _fingerprint_equal(a: dict, b: dict) -> bool:
+    # Prefer deterministic HTML snippet/hash match
+    if a.get("html_hash") and b.get("html_hash") and a["html_hash"] == b["html_hash"]:
+        return True
+
+    # If image URL sets match and perceptual hashes are close, treat as equal
+    a_imgs = set(a.get("img_urls", []))
+    b_imgs = set(b.get("img_urls", []))
+    if a_imgs and b_imgs and a_imgs == b_imgs:
+        a_ph = a.get("phash", 0)
+        b_ph = b.get("phash", 0)
+        if a_ph and b_ph and _hamming_distance(a_ph, b_ph) <= 6:
+            return True
+        # fallback to link equality
+        if set(a.get("links", [])) == set(b.get("links", [])):
+            return True
+
+    # Perceptual hash similarity alone is a strong indicator
+    a_ph = a.get("phash", 0)
+    b_ph = b.get("phash", 0)
+    if a_ph and b_ph and _hamming_distance(a_ph, b_ph) <= 5:
+        return True
+
+    return False
+
+
+async def _fingerprint_page(page) -> dict:
+    # Collect image urls, link hrefs and a short HTML snippet
+    try:
+        data = await page.evaluate(
+            """
+            () => {
+                const imgs = Array.from(document.querySelectorAll('img.page-image'));
+                const sources = imgs.map(img =>
+                    img.getAttribute('src') || img.getAttribute('src2') || img.getAttribute('data-src') || img.currentSrc || ''
+                ).filter(Boolean);
+                const links = Array.from(document.querySelectorAll('a[href]')).map(a => a.getAttribute('href') || '').filter(Boolean);
+                const ids = Array.from(document.querySelectorAll('[id], [data-id]')).map(el => el.id || el.getAttribute('data-id') || '').filter(Boolean);
+                const container = document.querySelector('.page, .viewer, .epaper, .page-wrapper') || document.body;
+                const htmlSnippet = (container.innerHTML || '').slice(0, 20000);
+                return {sources, links, ids, htmlSnippet};
+            }
+            """
+        )
+    except Exception:
+        data = {"sources": [], "links": [], "ids": [], "htmlSnippet": ""}
+
+    img_urls = list(dict.fromkeys(data.get("sources", [])))
+    links = list(dict.fromkeys(data.get("links", [])))
+    ids = list(dict.fromkeys(data.get("ids", [])))
+    html_snippet = data.get("htmlSnippet", "") or ""
+    html_hash = hashlib.sha256(html_snippet.encode("utf-8")).hexdigest() if html_snippet else ""
+
+    # Try to capture a small screenshot of the first page image to compute phash
+    phash = 0
+    try:
+        locator = page.locator('img.page-image')
+        if await locator.count() > 0:
+            elem = locator.first
+            box = await elem.bounding_box()
+
+            # Prefer to ensure the image has actually loaded (naturalWidth)
+            try:
+                loaded = await elem.evaluate("el => !!(el.naturalWidth && el.naturalWidth > 20)")
+            except Exception:
+                loaded = False
+
+            if not loaded:
+                try:
+                    await page.evaluate("() => { window.scrollTo(0, document.body.scrollHeight/2); }")
+                    await page.wait_for_timeout(500)
+                    loaded = await elem.evaluate("el => !!(el.naturalWidth && el.naturalWidth > 20)")
+                except Exception:
+                    loaded = False
+
+            if loaded and box and box.get("width") and box.get("height"):
+                clip = {
+                    "x": max(0, float(box["x"])),
+                    "y": max(0, float(box["y"])),
+                    "width": max(1, float(box["width"])),
+                    "height": max(1, float(box["height"])),
+                }
+                img_bytes = await page.screenshot(type="png", clip=clip)
+            else:
+                img_bytes = await page.screenshot(type="png", full_page=False)
+        else:
+            img_bytes = await page.screenshot(type="png", full_page=False)
+        phash = _phash_from_bytes(img_bytes)
+    except Exception:
+        phash = 0
+
+    return {
+        "img_urls": img_urls,
+        "links": links,
+        "ids": ids,
+        "html_hash": html_hash,
+        "phash": phash,
+    }
+
+
+async def _probe_pages(page, base_url: str, edition: str, date_value: str, max_probe: int = 100) -> int:
+    fingerprints: list[dict] = []
+    for n in range(1, max_probe + 1):
+        url = build_lokmat_page_url(base_url, edition, date_value, n)
+        try:
+            resp = await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+        except Exception:
+            break
+        if resp is None:
+            break
+
+        # Wait for at least one real image to load (naturalWidth > 20).
+        # Try a few attempts, nudging the page to trigger lazy-loading.
+        loaded = False
+        for _attempt in range(3):
+            try:
+                await page.wait_for_function(
+                    "() => Array.from(document.querySelectorAll('img.page-image')).some(img => img.naturalWidth && img.naturalWidth > 20)",
+                    timeout=2500,
+                )
+                loaded = True
+                break
+            except Exception:
+                try:
+                    await page.evaluate("() => { window.scrollTo(0, document.body.scrollHeight/2); }")
+                except Exception:
+                    pass
+                await page.wait_for_timeout(800)
+        if not loaded:
+            # final short wait as a fallback
+            await page.wait_for_timeout(800)
+
+        fp = await _fingerprint_page(page)
+
+        # If identical to previous page, treat as repetition and stop
+        if fingerprints and _fingerprint_equal(fp, fingerprints[-1]):
+            return n - 1
+
+        # If matches any earlier page, stop (cycle/repeat)
+        for prev in fingerprints:
+            if _fingerprint_equal(fp, prev):
+                return n - 1
+
+        fingerprints.append(fp)
+
+    return len(fingerprints)
+
+
+# --- Extraction & OCR helpers (restored original logic)
 
 def _extract_matched_articles_from_page(
     ocr_entries: list[dict],

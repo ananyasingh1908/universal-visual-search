@@ -11,6 +11,9 @@ from fastapi.staticfiles import StaticFiles
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from playwright.async_api import async_playwright
+import hashlib
+import numpy as np
+import cv2
 from pydantic import BaseModel
 
 from highlight_service import (
@@ -252,23 +255,175 @@ async def _detect_total_pages(page) -> int:
 
 
 def _build_page_url(base_url: str, page_number: int) -> str:
-    parsed = urlparse(base_url)
-    params = parse_qs(parsed.query, keep_blank_values=True)
+        parsed = urlparse(base_url)
+        params = parse_qs(parsed.query, keep_blank_values=True)
 
-    page_param = None
-    for name in ['page', 'pg', 'p', 'Page']:
-        if name in params:
-            page_param = name
+        page_param = None
+        for name in ['page', 'pg', 'p', 'Page']:
+            if name in params:
+                page_param = name
+                break
+
+        if page_param:
+            params[page_param] = [str(page_number)]
+        else:
+            params['page'] = [str(page_number)]
+
+        new_query = urlencode(params, doseq=True)
+        return urlunparse(parsed._replace(query=new_query))
+
+def _build_path_page_url(base_url: str, page_number: int) -> str:
+    parsed = urlparse(base_url)
+
+    parts = parsed.path.rstrip("/").split("/")
+
+    # replace last path segment (current page number)
+    if parts and parts[-1].isdigit():
+        parts[-1] = str(page_number)
+    else:
+        parts.append(str(page_number))
+
+    new_path = "/".join(parts)
+
+    return urlunparse(parsed._replace(path=new_path))
+
+def _phash_from_bytes(img_bytes: bytes) -> int:
+    try:
+        arr = np.frombuffer(img_bytes, np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            return 0
+        img = cv2.resize(img, (32, 32), interpolation=cv2.INTER_AREA)
+        dct = cv2.dct(np.float32(img))
+        dct_low = dct[:8, :8]
+        med = float(np.median(dct_low))
+        bits = (dct_low > med).flatten()
+        phash = 0
+        for b in bits:
+            phash = (phash << 1) | int(bool(b))
+        return int(phash)
+    except Exception:
+        return 0
+
+
+def _hamming_distance(a: int, b: int) -> int:
+    return bin((a or 0) ^ (b or 0)).count("1")
+
+
+def _fingerprint_equal(a: dict, b: dict) -> bool:
+    if a.get("html_hash") and b.get("html_hash") and a["html_hash"] == b["html_hash"]:
+        return True
+    a_imgs = set(a.get("img_urls", []))
+    b_imgs = set(b.get("img_urls", []))
+    if a_imgs and b_imgs and a_imgs == b_imgs:
+        a_ph = a.get("phash", 0)
+        b_ph = b.get("phash", 0)
+        if a_ph and b_ph and _hamming_distance(a_ph, b_ph) <= 8:
+            return True
+    a_ph = a.get("phash", 0)
+    b_ph = b.get("phash", 0)
+    if a_ph and b_ph and _hamming_distance(a_ph, b_ph) <= 7:
+        return True
+    return False
+
+
+async def _fingerprint_page_main(page) -> dict:
+    try:
+        data = await page.evaluate(
+            """
+            () => {
+                const imgs = Array.from(document.querySelectorAll('img.page-image'));
+                const sources = imgs.map(img => img.getAttribute('src') || img.getAttribute('src2') || img.getAttribute('data-src') || img.currentSrc || '').filter(Boolean);
+                const links = Array.from(document.querySelectorAll('a[href]')).map(a => a.getAttribute('href') || '').filter(Boolean);
+                const ids = Array.from(document.querySelectorAll('[id], [data-id]')).map(el => el.id || el.getAttribute('data-id') || '').filter(Boolean);
+                const container = document.querySelector('.page, .viewer, .epaper, .page-wrapper') || document.body;
+                const htmlSnippet = (container.innerHTML || '').slice(0, 8000);
+                return {sources, links, ids, htmlSnippet};
+            }
+            """
+        )
+    except Exception:
+        data = {"sources": [], "links": [], "ids": [], "htmlSnippet": ""}
+
+    img_urls = list(dict.fromkeys(data.get("sources", [])))
+    links = list(dict.fromkeys(data.get("links", [])))
+    ids = list(dict.fromkeys(data.get("ids", [])))
+    html_snippet = data.get("htmlSnippet", "") or ""
+    html_hash = hashlib.sha256(html_snippet.encode("utf-8")).hexdigest() if html_snippet else ""
+
+    phash = 0
+    try:
+        locator = page.locator('img.page-image')
+        if await locator.count() > 0:
+            elem = locator.first
+            box = await elem.bounding_box()
+            try:
+                loaded = await elem.evaluate("el => !!(el.naturalWidth && el.naturalWidth > 20)")
+            except Exception:
+                loaded = False
+            if not loaded:
+                try:
+                    await page.evaluate("() => { window.scrollTo(0, document.body.scrollHeight/2); }")
+                    await page.wait_for_timeout(500)
+                    loaded = await elem.evaluate("el => !!(el.naturalWidth && el.naturalWidth > 20)")
+                except Exception:
+                    loaded = False
+            if loaded and box and box.get("width") and box.get("height"):
+                clip = {"x": max(0, float(box["x"])), "y": max(0, float(box["y"])), "width": max(1, float(box["width"])), "height": max(1, float(box["height"]))}
+                img_bytes = await page.screenshot(type="png", clip=clip)
+            else:
+                img_bytes = await page.screenshot(type="png", full_page=False)
+        else:
+            img_bytes = await page.screenshot(type="png", full_page=False)
+        phash = _phash_from_bytes(img_bytes)
+    except Exception:
+        phash = 0
+
+    return {"img_urls": img_urls, "links": links, "ids": ids, "html_hash": html_hash, "phash": phash}
+
+
+async def _probe_pages(page, base_url: str) -> int:
+    fingerprints: list[dict] = []
+    max_probes = 40
+    for n in range(1, max_probes + 1):
+        page_url = _build_path_page_url(base_url, n)
+        print(f"PROBING PAGE {n}")
+        print(f"URL = {page_url}")
+        try:
+            resp = await page.goto(page_url, wait_until="domcontentloaded", timeout=20000)
+        except Exception as e:
+            print(f"Navigation error: {e}")
+            break
+        print("CURRENT URL:", page.url)
+        if resp is None:
+            print("NO RESPONSE")
+            break
+        print(f"STATUS = {resp.status}")
+        if resp.status >= 400:
+            print("HTTP ERROR")
             break
 
-    if page_param:
-        params[page_param] = [str(page_number)]
-    else:
-        params['page'] = [str(page_number)]
+        # wait briefly for images to load
+        try:
+            await page.wait_for_function("() => Array.from(document.querySelectorAll('img.page-image')).some(i=>i.naturalWidth>20)", timeout=3000)
+        except Exception:
+            await page.wait_for_timeout(800)
 
-    new_query = urlencode(params, doseq=True)
-    return urlunparse(parsed._replace(query=new_query))
+        fp = await _fingerprint_page_main(page)
+        print(f"FP imgs={len(fp.get('img_urls',[]))} phash={fp.get('phash',0)} html_hash_prefix={fp.get('html_hash','')[:8]}")
 
+        if fingerprints and _fingerprint_equal(fp, fingerprints[-1]):
+            print(f"PAGE {n} repeats previous page")
+            return n - 1
+        for prev in fingerprints:
+            if _fingerprint_equal(fp, prev):
+                print(f"PAGE {n} matches earlier page - stopping")
+                return n - 1
+
+        fingerprints.append(fp)
+
+    print(f"TOTAL PAGES FOUND = {len(fingerprints)}")
+    return len(fingerprints)
 
 @app.post("/scan-website")
 async def scan_website(request: WebsiteScanRequest):
@@ -353,7 +508,16 @@ async def _run_scan_job(job_id: str, url: str):
 
             total_pages = max(1, await _detect_total_pages(page))
 
-            _jobs[job_id]["progress"]["total_pages"] = total_pages
+            parsed_url = urlparse(url)
+            use_path_probing = (
+                "/" in parsed_url.path and
+                not parsed_url.query
+            )
+
+            if use_path_probing:
+                total_pages = await _probe_pages(page, url)
+
+            print("FINAL TOTAL PAGES =", total_pages)
 
             all_ocr_entries: list[dict] = []
             pages_scanned = 0
@@ -362,57 +526,154 @@ async def _run_scan_job(job_id: str, url: str):
             page_errors: list[str] = []
             loop = asyncio.get_running_loop()
 
-            for page_num in range(1, total_pages + 1):
-                try:
-                    if page_num > 1:
+
+            if use_path_probing:
+                _jobs[job_id]["progress"]["total_pages"] = total_pages
+                print("SCAN LOOP TOTAL PAGES =", total_pages)
+                for page_num in range(1, total_pages + 1):
+                    try:
+                        page_url = _build_path_page_url(url, page_num)
+
+                        print("USING SCAN LOOP A")
+                        print(f"SCANNING PAGE {page_num}")
+
+                        await page.goto(
+                            page_url,
+                            wait_until="domcontentloaded",
+                            timeout=100000,
+                        )
+
+                        await page.wait_for_timeout(5000)
+
                         try:
-                            next_url = _build_page_url(url, page_num)
-                            await page.goto(
-                                next_url,
-                                wait_until="domcontentloaded",
-                                timeout=100000,
+                            
+
+                            print("PAGE IMAGE FOUND")
+
+                            imgs = page.locator("img.page-image")
+                            count = await imgs.count()
+
+                            for i in range(count):
+                                src = await imgs.nth(i).get_attribute("src")
+                                print(f"IMAGE {i} = {src}")
+
+                            img_src = await imgs.nth(0).get_attribute("src")
+
+                            print("IMG SRC:", img_src)
+                            print("CURRENT URL:", page.url) 
+
+                        except Exception as e:
+                            print("PAGE IMAGE NOT FOUND:", e)
+
+                        await page.wait_for_timeout(3000)
+
+                        shot_name = f"{document_id}_p{page_num}.png"
+                        shot_path = SCREENSHOTS_DIR / shot_name
+
+                        await page.screenshot(
+                            path=str(shot_path),
+                            full_page=True,
+                        )
+
+                        print("Saved:", shot_path)
+                        print("Exists:", shot_path.exists())
+
+                        page_screenshots[str(page_num)] = (
+                            f"{SCREENSHOT_BASE_URL}/{shot_name}"
+                        )
+
+                        ocr_entries = await loop.run_in_executor(
+                            None,
+                            run_ocr,
+                            reader,
+                            shot_path,
+                            page_num,
+                        )
+
+                        all_ocr_entries.extend(ocr_entries)
+
+                        headline_summary = summarize_headline(
+                            ocr_entries
+                        )   
+
+                        if headline_summary["headline_text"]:
+                            page_headlines[str(page_num)] = (
+                                headline_summary["headline_text"]
                             )
-                            await page.wait_for_timeout(10000)
-                        except Exception as nav_err:
-                            print(f"Page {page_num} failed: {nav_err}")
+
+                        pages_scanned += 1
+
+                    except Exception as page_err:
+                        if page_num == 1:
+                            raise Exception(
+                                f"Failed to load first page: {page_err}"
+                            )
+                        else:   
                             page_errors.append(
-                                f"Page {page_num}: navigation failed ({nav_err})"
+                                f"Page {page_num}: {page_err}"
                             )
                             continue
 
-                    shot_name = f"{document_id}_p{page_num}.png"
-                    shot_path = SCREENSHOTS_DIR / shot_name
-                    await page.screenshot(
-                        path=str(shot_path),
-                        full_page=True,
+                    _jobs[job_id]["progress"]["current_page"] = pages_scanned
+
+                    _jobs[job_id]["progress"]["words_extracted"] = (
+                        count_words(all_ocr_entries)
                     )
+            else:
+                _jobs[job_id]["progress"]["total_pages"] = total_pages
 
-                    print("Saved:", shot_path)
-                    print("Exists:", shot_path.exists())
+                for page_num in range(1, total_pages + 1):
+                    try:
+                        if page_num > 1:
+                            try:
+                                next_url = _build_page_url(url, page_num)
+                                print("USING SCAN LOOP B")
+                                await page.goto(
+                                    next_url,
+                                    wait_until="domcontentloaded",
+                                    timeout=100000,
+                                )
+                                await page.wait_for_timeout(10000)
+                            except Exception as nav_err:
+                                print(f"Page {page_num} failed: {nav_err}")
+                                page_errors.append(
+                                    f"Page {page_num}: navigation failed ({nav_err})"
+                                )
+                                continue
 
-                    page_screenshots[str(page_num)] = (
-                        f"{SCREENSHOT_BASE_URL}/{shot_name}"
+                        shot_name = f"{document_id}_p{page_num}.png"
+                        shot_path = SCREENSHOTS_DIR / shot_name
+                        await page.screenshot(
+                            path=str(shot_path),
+                            full_page=True,
+                        )
+
+                        print("Saved:", shot_path)
+                        print("Exists:", shot_path.exists())
+
+                        page_screenshots[str(page_num)] = (
+                            f"{SCREENSHOT_BASE_URL}/{shot_name}"
+                        )
+
+                        ocr_entries = await loop.run_in_executor(
+                            None, run_ocr, reader, shot_path, page_num,
+                        )
+                        all_ocr_entries.extend(ocr_entries)
+                        headline_summary = summarize_headline(ocr_entries)
+                        if headline_summary["headline_text"]:
+                            page_headlines[str(page_num)] = headline_summary["headline_text"]
+                        pages_scanned += 1
+
+                    except Exception as page_err:
+                        page_errors.append(
+                            f"Page {page_num}: {page_err}"
+                        )
+                        continue
+
+                    _jobs[job_id]["progress"]["current_page"] = pages_scanned
+                    _jobs[job_id]["progress"]["words_extracted"] = count_words(
+                        all_ocr_entries
                     )
-
-                    ocr_entries = await loop.run_in_executor(
-                        None, run_ocr, reader, shot_path, page_num,
-                    )
-                    all_ocr_entries.extend(ocr_entries)
-                    headline_summary = summarize_headline(ocr_entries)
-                    if headline_summary["headline_text"]:
-                        page_headlines[str(page_num)] = headline_summary["headline_text"]
-                    pages_scanned += 1
-
-                except Exception as page_err:
-                    page_errors.append(
-                        f"Page {page_num}: {page_err}"
-                    )
-                    continue
-
-                _jobs[job_id]["progress"]["current_page"] = pages_scanned
-                _jobs[job_id]["progress"]["words_extracted"] = count_words(
-                    all_ocr_entries
-                )
 
             await browser.close()
 

@@ -76,9 +76,28 @@ class NewspaperRegistry:
             raise InvalidPageError(f"Page number must be >= 1, got {page}")
         return True
 
+    def _convert_date_format(self, date: str, target_format: str) -> str:
+        try:
+            dt = datetime.strptime(date, "%Y-%m-%d")
+            if target_format == "DD/MM/YYYY":
+                return dt.strftime("%d/%m/%Y")
+            elif target_format == "YYYYMMDD":
+                return dt.strftime("%Y%m%d")
+            elif target_format == "YYYY-MM-DD":
+                return dt.strftime("%Y-%m-%d")
+            else:
+                return date
+        except ValueError:
+            return date
+
     def resolve_newspaper_url(self, newspaper: str, date: str, page: int) -> str:
         newspaper_info = self._find_newspaper_by_name(newspaper)
-        self._validate_date(date, newspaper_info["date_format"])
+        
+        date_format = newspaper_info["date_format"]
+        if date_format == "DD/MM/YYYY" or date_format == "YYYYMMDD":
+            date = self._convert_date_format(date, date_format)
+        
+        self._validate_date(date, date_format)
         self._validate_page(page)
 
         url_type = newspaper_info["url_type"]

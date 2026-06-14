@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Date Picker Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.active {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.inactive {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .test-button {
+            padding: 8px 16px;
+            margin: 5px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Date Picker Bug Test</h1>
+        
+        <div class="test-section">
+            <h3>Test 1: Check Calendar State</h3>
+            <button class="test-button" onclick="checkCalendarState()">Check Calendar State</button>
+            <div id="state-display" class="status">Not checked</div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Test 2: Check if Calendar is Rendered</h3>
+            <button class="test-button" onclick="checkCalendarRendered()">Check Calendar Rendered</button>
+            <div id="render-display" class="status">Not checked</div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Test 3: Open Calendar via Input Click</h3>
+            <button class="test-button" onclick="openCalendar()">Open Calendar</button>
+            <div id="input-display" class="status">Not clicked</div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Test 4: Check for Parent Container Issues</h3>
+            <button class="test-button" onclick="checkParentContainers()">Check Parent Containers</button>
+            <div id="parent-display" class="status">Not checked</div>
+        </div>
+        
+        <div class="test-section">
+            <h3>Current Date</h3>
+            <input type="text" id="dateDisplay" readonly style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        </div>
+        
+        <div class="test-section">
+            <h3>Console Log Capture</h3>
+            <p>Open browser console to see any errors</p>
+            <button class="test-button" onclick="console.log('Manual test - date picker clicked')">Simulate Click</button>
+        </div>
+    </div>
+    
+    <script>
+        // Inject a test script to monitor date picker interactions
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Date picker test page loaded');
+            
+            // Check for date picker elements
+            const dateInput = document.querySelector('input[placeholder="Select Date"]');
+            const calendarButton = document.querySelector('button[aria-label], button:contains("📅");');
+            
+            if (dateInput) {
+                console.log('✓ Date input found:', dateInput);
+                dateInput.addEventListener('click', function(e) {
+                    console.log('✓ Date input clicked');
+                    setTimeout(() => {
+                        const calendar = document.querySelector('.absolute.top-full.mt-2.p-4');
+                        if (calendar) {
+                            console.log('✓ Calendar is visible:', calendar);
+                        } else {
+                            console.log('✗ Calendar not found - may be hidden or not rendered');
+                        }
+                    }, 100);
+                });
+            }
+            
+            if (calendarButton) {
+                console.log('✓ Calendar button found:', calendarButton);
+                calendarButton.addEventListener('click', function(e) {
+                    console.log('✓ Calendar button clicked');
+                    setTimeout(() => {
+                        const calendar = document.querySelector('.absolute.top-full.mt-2.p-4');
+                        if (calendar) {
+                            console.log('✓ Calendar is visible:', calendar);
+                        } else {
+                            console.log('✗ Calendar not found - may be hidden or not rendered');
+                        }
+                    }, 100);
+                });
+            }
+            
+            // Check for showCalendar state
+            const script = document.createElement('script');
+            script.textContent = `
+                // Mock the React component to check state changes
+                function checkCalendarState() {
+                    const dateInput = document.querySelector('input[placeholder="Select Date"]');
+                    if (dateInput) {
+                        const rect = dateInput.getBoundingClientRect();
+                        document.getElementById('state-display').innerHTML = 
+                            '<span style=\"color: green;\">✓ Input position: ' + rect.top + 'px from top</span>';
+                    }
+                }
+                
+                function checkCalendarRendered() {
+                    const calendar = document.querySelector('.absolute.top-full.mt-2.p-4');
+                    if (calendar) {
+                        document.getElementById('render-display').innerHTML = 
+                            '<span style=\"color: green;\">✓ Calendar is rendered</span><br>' +
+                            '<small>Calendar classes: ' + calendar.className + '</small><br>' +
+                            '<small>Calendar z-index: ' + window.getComputedStyle(calendar).zIndex + '</small>';
+                    } else {
+                        document.getElementById('render-display').innerHTML = 
+                            '<span style=\"color: red;\">✗ Calendar not found</span>';
+                    }
+                }
+                
+                function openCalendar() {
+                    const dateInput = document.querySelector('input[placeholder="Select Date"]');
+                    if (dateInput) {
+                        dateInput.click();
+                        document.getElementById('input-display').innerHTML = 
+                            '<span style=\"color: green;\">✓ Input clicked</span>';
+                    }
+                }
+                
+                function checkParentContainers() {
+                    // Find all parent containers that might have overflow: hidden
+                    let current = dateInput;
+                    let depth = 0;
+                    let containerInfo = 'Container search:';
+                    
+                    while (current && depth < 10) {
+                        const style = window.getComputedStyle(current);
+                        if (style.overflow !== 'visible' || style.overflowY !== 'visible') {
+                            containerInfo += '<br>- ' + current.tagName + ': overflow=' + style.overflow + ', overflowY=' + style.overflowY;
+                        }
+                        current = current.parentElement;
+                        depth++;
+                    }
+                    
+                    document.getElementById('parent-display').innerHTML = containerInfo;
+                }
+            `;
+            document.head.appendChild(script);
+            
+            // Check if date picker components exist on page load
+            setTimeout(() => {
+                const dateInput = document.querySelector('input[placeholder="Select Date"]');
+                const calendarButton = document.querySelector('button[aria-label], button:contains("📅");');
+                const calendar = document.querySelector('.absolute.top-full.mt-2.p-4');
+                
+                console.log('Page load analysis:');
+                console.log('- Date input found:', !!dateInput);
+                console.log('- Calendar button found:', !!calendarButton);
+                console.log('- Calendar rendered:', !!calendar);
+                
+                if (dateInput) {
+                    document.getElementById('dateDisplay').value = dateInput.value;
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

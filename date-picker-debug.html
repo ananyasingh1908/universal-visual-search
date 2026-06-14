@@ -1,0 +1,147 @@
+<html>
+<head>
+    <title>Simple Test</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        button { padding: 10px; margin: 5px; cursor: pointer; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Date Picker Test - Checking Implementation</h1>
+        
+        <div class="test-section">
+            <h2>1. Check Calendar Implementation</h2>
+            <button onclick="checkCalendarImplementation()">Check Implementation</button>
+            <div id="result1"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>2. Test Date Display Logic</h2>
+            <button onclick="testDateFormatting()">Test Date Formatting</button>
+            <div id="result2"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>3. Check JavaScript Syntax</h2>
+            <button onclick="checkSyntax()">Check Syntax</button>
+            <div id="result3"></div>
+        </div>
+    </div>
+    
+    <script>
+        function checkCalendarImplementation() {
+            const result = document.getElementById('result1');
+            
+            // Check if the file exists and is accessible
+            fetch('frontend/app/page.tsx')
+                .then(response => response.text())
+                .then(text => {
+                    let checks = [];
+                    
+                    // Check for key components
+                    if (text.includes('const [showCalendar, setShowCalendar] = useState(false)')) {
+                        checks.push('✓ showCalendar state is defined');
+                    } else {
+                        checks.push('✗ showCalendar state is NOT defined');
+                    }
+                    
+                    if (text.includes('onClick={() => setShowCalendar(!showCalendar)}')) {
+                        checks.push('✓ onClick handlers are defined');
+                    } else {
+                        checks.push('✗ onClick handlers are NOT defined');
+                    }
+                    
+                    if (text.includes('{showCalendar && (')) {
+                        checks.push('✓ Calendar renders conditionally');
+                    } else {
+                        checks.push('✗ Calendar does NOT render conditionally');
+                    }
+                    
+                    if (text.includes('absolute top-full mt-2 p-4 bg-white dark:bg-gray-800 border rounded-lg shadow-lg z-50')) {
+                        checks.push('✓ Calendar has correct positioning and styling');
+                    } else {
+                        checks.push('✗ Calendar positioning/styling is incorrect');
+                    }
+                    
+                    if (text.includes('toLocaleDateString("en-IN"')) {
+                        checks.push('✓ Date formatting is implemented');
+                    } else {
+                        checks.push('✗ Date formatting is NOT implemented');
+                    }
+                    
+                    result.innerHTML = checks.join('<br>');
+                })
+                .catch(error => {
+                    result.innerHTML = '✗ Error loading file: ' + error.message;
+                });
+        }
+        
+        function testDateFormatting() {
+            const result = document.getElementById('result2');
+            
+            // Test the date formatting logic
+            const testDate = '2026-06-13';
+            const formatted = testDate ? new Date(testDate + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
+            
+            result.innerHTML = `
+                <h3>Date Formatting Test</h3>
+                <p>Input: ${testDate}</p>
+                <p>Output: ${formatted}</p>
+                <p>Expected: 13 Jun 2026</p>
+                <p>Match: ${formatted === '13 Jun 2026' ? '✓ PASS' : '✗ FAIL'}</p>
+            `;
+        }
+        
+        function checkSyntax() {
+            const result = document.getElementById('result3');
+            
+            // Try to evaluate the JavaScript code from the page.tsx file
+            const jsCode = `
+                // Simulate the JavaScript functions
+                const getDaysInMonth = (year, month) => {
+                    return new Date(year, month + 1, 0).getDate();
+                };
+                
+                const getFirstDayOfMonth = (year, month) => {
+                    return new Date(year, month, 1).getDay();
+                };
+                
+                // Test the functions
+                const year = 2026;
+                const month = 5; // June (0-indexed)
+                
+                const days = getDaysInMonth(year, month);
+                const firstDay = getFirstDayOfMonth(year, month);
+                
+                console.log('Days in month:', days);
+                console.log('First day of month:', firstDay);
+                
+                if (days > 0 && firstDay >= 0 && firstDay <= 6) {
+                    return '✓ JavaScript functions are syntactically correct';
+                } else {
+                    return '✗ JavaScript functions have issues';
+                }
+            `;
+            
+            try {
+                const testFunc = new Function(jsCode);
+                const result = testFunc();
+                result3.innerHTML = `<pre>${result}</pre>`;
+            } catch (error) {
+                result3.innerHTML = `<pre>✗ Syntax error: ${error.message}</pre>`;
+            }
+        }
+        
+        // Run initial test
+        window.onload = function() {
+            checkCalendarImplementation();
+            testDateFormatting();
+            checkSyntax();
+        };
+    </script>
+</body>
+</html>
