@@ -30,14 +30,18 @@ type DistrictAvailability = {
 
 const NEWSPAPERS: Record<Newspaper["language"], Newspaper[]> = {
   English: [
-    { name: "The Hitvada", language: "English", columnKey: "Hitavada" },
-    { name: "Times of India", language: "English" },
+    { name: "The Hitavada", language: "English", columnKey: "Hitavada" },
+    { name: "The Hitavada City Line", language: "English", columnKey: "Hitavada" },
+    { name: "The Hitavada Vidarbha Line", language: "English", columnKey: "Hitavada" },
+    { name: "Times of India Nagpur", language: "English" },
     { name: "Nagpur Post", language: "English" },
     { name: "Lokmat Times", language: "English", columnKey: "MTimes" },
     { name: "Economic Times", language: "English" },
   ],
   Hindi: [
     { name: "Lokmat Samachar", language: "Hindi" },
+    { name: "Lokmat Samachar Apna Nagpur", language: "Hindi" },
+    { name: "Lokmat Samachar Apna Vidarbha", language: "Hindi" },
     { name: "Dainik Bhaskar", language: "Hindi", columnKey: "DBhaskar" },
     { name: "Navbharat", language: "Hindi", columnKey: "Navbharat" },
     { name: "Vidarbha ki baat", language: "Hindi" },
@@ -45,9 +49,13 @@ const NEWSPAPERS: Record<Newspaper["language"], Newspaper[]> = {
     { name: "Rashtra Prakash", language: "Hindi" },
   ],
   Marathi: [
-    { name: "Lokmat", language: "Marathi", columnKey: "Lokmat" },
-    { name: "Loksatta", language: "Marathi", columnKey: "Loksatta" },
+    { name: "Lokmat Nagpur", language: "Marathi", columnKey: "Lokmat" },
+    { name: "Lokmat Hello Nagpur", language: "Marathi", columnKey: "Lokmat" },
+    { name: "Lokmat Hello Wardha", language: "Marathi", columnKey: "Lokmat" },
+    { name: "Loksatta Nagpur", language: "Marathi", columnKey: "Loksatta" },
     { name: "Maharashtra Times", language: "Marathi", columnKey: "MTimes" },
+    { name: "Maharashtra Times Nagpur", language: "Marathi", columnKey: "MTimes" },
+    { name: "Maharashtra Times Nagpur Plus", language: "Marathi", columnKey: "MTimes" },
     { name: "Lokshahi Varta", language: "Marathi" },
     { name: "Sakal", language: "Marathi", columnKey: "Sakal" },
     { name: "Lok Vahini", language: "Marathi" },
@@ -654,6 +662,7 @@ export default function Home() {
   const [scanProgress, setScanProgress] = useState<string | null>(null);
   const [selectedNewspaper, setSelectedNewspaper] = useState<Newspaper | null>(null);
   const [selectedRegion, setSelectedRegion] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<string>("");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stopPolling = () => {
@@ -692,7 +701,19 @@ export default function Home() {
   };
 
   const scanWebsite = async () => {
-    if (!url) return;
+    if (!selectedNewspaper) {
+      alert("Please select a newspaper");
+      return;
+    }
+    if (!selectedDate) {
+      alert("Please select a date");
+      return;
+    }
+    if (!selectedNewspaper.name) {
+      alert("Please select a valid newspaper");
+      return;
+    }
+
     setLoading(true);
     setScanProgress("Starting scan...");
     setPagesScanned(null);
@@ -706,7 +727,11 @@ export default function Home() {
     setResults(null);
 
     try {
-      const res = await axios.post<{ job_id: string }>(`${API_BASE}/scan-website`, { url });
+      const res = await axios.post<{ job_id: string }>(`${API_BASE}/resolve-and-scan`, {
+        newspaper: selectedNewspaper.name,
+        date: selectedDate,
+        page: 1
+      });
       const jobId: string = res.data.job_id;
       setScanProgress(`Job created: ${jobId.slice(0, 8)}...`);
 
@@ -899,6 +924,18 @@ export default function Home() {
         {scanProgress && (
           <p className="text-sm text-gray-600">{scanProgress}</p>
         )}
+      </div>
+
+      <div className="border p-4 rounded-lg space-y-4">
+        <h2 className="font-bold">Select Date</h2>
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          placeholder="YYYY-MM-DD"
+          className="border p-2 w-full"
+          required
+        />
       </div>
 
       <div className="border p-4 rounded-lg space-y-4">

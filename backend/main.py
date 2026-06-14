@@ -20,6 +20,7 @@ from highlight_service import (
     highlight_keywords,
 )
 from lokmat_scraper import scrape_lokmat_times_edition
+from newspaper_resolver import resolve_newspaper_url
 from news_keywords import first_matching_keyword, get_news_keywords
 from ocr_service import (
     process_image_document,
@@ -94,6 +95,12 @@ class HighlightRequest(BaseModel):
 
 class WebsiteScanRequest(BaseModel):
     url: str
+
+
+class NewspaperScanRequest(BaseModel):
+    newspaper: str
+    date: str
+    page: int = 1
 
 
 class LokmatScrapeRequest(BaseModel):
@@ -303,6 +310,21 @@ async def scan_status(job_id: str):
         resp["error"] = job["error"]
 
     return resp
+
+
+@app.post("/resolve-and-scan")
+async def resolve_and_scan(request: NewspaperScanRequest):
+    from newspaper_resolver import resolve_newspaper_url
+    try:
+        print(f"resolve_and_scan: Processing request - newspaper: {request.newspaper}, date: {request.date}, page: {request.page}")
+        resolved_url = resolve_newspaper_url(request.newspaper, request.date, request.page)
+        print(f"resolve_and_scan: Generated URL: {resolved_url}")
+        return await scan_website(WebsiteScanRequest(url=resolved_url))
+    except Exception as e:
+        print(f"resolve_and_scan: Failed to resolve newspaper URL: {e}")
+        import traceback
+        print(f"resolve_and_scan: Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to resolve newspaper URL: {e}")
 
 
 async def _run_scan_job(job_id: str, url: str):
@@ -547,3 +569,7 @@ async def search_all(request: SearchRequest):
         "documents_found": len(results),
         "results": results,
     }
+print("=== REGISTERED ROUTES ===")
+
+for route in app.routes:
+    print(route.path)

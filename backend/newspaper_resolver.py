@@ -14,13 +14,30 @@ class InvalidPageError(Exception):
     pass
 class NewspaperRegistry:
     def __init__(self, registry_path: str = "backend/newspaper_registry.json"):
-        self.registry_path = Path(registry_path)
+        import os
+        BASE_DIR = Path(__file__).resolve().parent
+        print(f"NewspaperRegistry: __file__ = {__file__}")
+        print(f"NewspaperRegistry: BASE_DIR = {BASE_DIR}")
+        
+        if registry_path == "backend/newspaper_registry.json":
+            self.registry_path = BASE_DIR / "newspaper_registry.json"
+            print(f"NewspaperRegistry: Using absolute path: {self.registry_path}")
+        else:
+            self.registry_path = Path(registry_path)
+            print(f"NewspaperRegistry: Using custom path: {self.registry_path}")
+            
+        print(f"NewspaperRegistry: File exists = {os.path.exists(self.registry_path)}")
         self._registry = None
 
-    def _load_registry(self) -> List[Dict]:
+    def _load_registry(self):
+        print("=== REGISTRY DEBUG ===")
+        print("Path:", self.registry_path)
+        print("Exists:", self.registry_path.exists())
+
         if self._registry is None:
             with open(self.registry_path, "r", encoding="utf-8") as f:
                 self._registry = json.load(f)
+
         return self._registry
 
     def _find_newspaper_by_name(self, name: str) -> Dict:
