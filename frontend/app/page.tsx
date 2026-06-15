@@ -590,6 +590,7 @@ type HighlightResponse = {
   highlighted_image_url: string | null;
   total_matches: number;
   page_number?: number;
+  viewer_url?: string;
 };
 
 type ScanResult = {
@@ -630,7 +631,7 @@ const getErrorMessage = (err: unknown, fallback: string) => {
   return fallback;
 };
 
-export default function Home() {
+const Page = () => {
   const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState("");
   const [documentId, setDocumentId] = useState("");
@@ -1349,8 +1350,22 @@ export default function Home() {
             </div>
           </div>
           <p className="mt-4">Matches Found: {highlightData.total_matches}</p>
+          {highlightData.viewer_url && (
+            <div className="mt-4">
+              <a 
+                href={highlightData.viewer_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-block px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Open Interactive Viewer
+              </a>
+            </div>
+          )}
         </div>
       )}
     </main>
   );
 }
+
+export default Page

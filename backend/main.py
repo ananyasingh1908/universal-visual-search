@@ -10,8 +10,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
+
+
 from playwright.async_api import async_playwright
 import hashlib
+
+
+class CORSStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        return response
 import numpy as np
 import cv2
 from pydantic import BaseModel
@@ -21,10 +30,15 @@ from highlight_service import (
     ImageReadError,
     OriginalImageNotFoundError,
     highlight_keywords,
+    _find_original_image,
 )
 from lokmat_scraper import scrape_lokmat_times_edition
 from newspaper_resolver import resolve_newspaper_url
-from news_keywords import first_matching_keyword, get_news_keywords
+from news_keywords import (
+    first_matching_keyword,
+    get_news_keywords,
+    keyword_matches_any_text,
+)
 from ocr_service import (
     process_image_document,
     run_ocr,
@@ -75,13 +89,16 @@ UPLOADS_DIR = BASE_DIR / "uploads"
 SCREENSHOTS_DIR = BASE_DIR / "screenshots"
 OUTPUTS_DIR = BASE_DIR / "outputs"
 
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
-app.mount("/outputs", StaticFiles(directory=OUTPUTS_DIR), name="outputs")
-app.mount("/screenshots", StaticFiles(directory=SCREENSHOTS_DIR), name="screenshots")
+app.mount("/outputs", CORSStaticFiles(directory=OUTPUTS_DIR), name="outputs")
+app.mount("/uploads", CORSStaticFiles(directory=UPLOADS_DIR), name="uploads")
+app.mount("/screenshots", CORSStaticFiles(directory=SCREENSHOTS_DIR), name="screenshots")
 
 SCREENSHOT_BASE_URL = "http://127.0.0.1:8000/screenshots"
+UPLOAD_BASE_URL = "http://127.0.0.1:8000/uploads"
 OUTPUT_BASE_URL = "/outputs"
 
 
@@ -176,17 +193,98 @@ async def highlight_document(request: HighlightRequest):
         raise HTTPException(status_code=400, detail="Invalid document_id")
 
     try:
-        return highlight_keywords(
+        result = highlight_keywords(
             document_id,
             list(get_news_keywords()),
             BASE_DIR,
             page_number=request.page_number,
         )
+        
+        if result["highlighted_image_url"]:
+            viewer_url = f"http://localhost:3000/viewer/{document_id}/{result['page_number']}"
+            result["viewer_url"] = viewer_url
+            
+        return result
     except DocumentNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except OriginalImageNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except ImageReadError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/viewer/{document_id}/{page}")
+async def get_viewer(document_id: str, page: int):
+    try:
+        document_id = str(UUID(document_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid document_id")
+
+    try:
+        data_dir = BASE_DIR / "data"
+        document_path = data_dir / f"{document_id}.json"
+        
+        if not document_path.is_file():
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        with document_path.open("r", encoding="utf-8") as f:
+            ocr_entries = json.load(f)
+        
+            page_entries = [
+            entry for entry in ocr_entries if entry.get("page_number") == page
+        ]
+
+        matched_keywords = list(get_news_keywords())
+        matched_entries = [
+            {
+                **entry,
+                "matched_keyword": first_matching_keyword(str(entry.get("text", "")), matched_keywords),
+            }
+            for entry in page_entries
+            if keyword_matches_any_text(str(entry.get("text", "")), matched_keywords)
+        ]
+
+        # Prefer original high-resolution image URL discovered during scanning
+        meta_path = data_dir / f"{document_id}_meta.json"
+        image_url = None
+        if meta_path.is_file():
+            try:
+                with meta_path.open("r", encoding="utf-8") as mf:
+                    meta = json.load(mf)
+                    page_image_urls = meta.get("page_image_urls", {}) or {}
+                    # keys are stored as strings
+                    image_url = page_image_urls.get(str(page)) or page_image_urls.get(page) or None
+            except Exception:
+                image_url = None
+
+        # If no original URL metadata, try to find a locally stored original image
+        if not image_url:
+            image_path = _find_original_image(document_id, BASE_DIR, page)
+            if image_path is not None:
+                if image_path.parent == UPLOADS_DIR:
+                    image_url = f"{UPLOAD_BASE_URL}/{image_path.name}"
+                elif image_path.parent == SCREENSHOTS_DIR:
+                    image_url = f"{SCREENSHOT_BASE_URL}/{image_path.name}"
+                else:
+                    image_url = f"{SCREENSHOT_BASE_URL}/{image_path.name}"
+
+        # Final fallback: page-numbered screenshot
+        if not image_url:
+            screenshot_filename = f"{document_id}_p{page}.png"
+            screenshot_path = SCREENSHOTS_DIR / screenshot_filename
+            if not screenshot_path.is_file():
+                raise HTTPException(status_code=404, detail=f"Page image not found for page {page}")
+            image_url = f"{SCREENSHOT_BASE_URL}/{screenshot_filename}"
+
+        return {
+            "image_url": image_url,
+            "matched_entries": matched_entries,
+            "ocr_entries": page_entries,
+            "total_matches": len(matched_entries),
+            "page_number": page,
+            "document_id": document_id,
+        }
+    except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
 

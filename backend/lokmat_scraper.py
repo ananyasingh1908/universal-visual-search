@@ -65,6 +65,9 @@ async def scrape_lokmat_times_edition(
     raw_entries: list[dict] = []
     collected_results: list[dict] = []
 
+    # Map of page_number -> original high-resolution image URL (if found)
+    page_image_urls: dict[str, str] = {}
+
     screenshots_dir = base_dir / "screenshots"
     outputs_dir = base_dir / "outputs"
     data_dir = base_dir / "data"
@@ -133,6 +136,23 @@ async def scrape_lokmat_times_edition(
                 if await _looks_like_missing_page(page, page_number):
                     break
 
+                # Try to capture the original page image URL (prefer high-res source)
+                try:
+                    img_src = await page.evaluate(
+                        """
+                        () => {
+                            const img = document.querySelector('img.page-image');
+                            if (!img) return null;
+                            const src = img.getAttribute('src') || img.getAttribute('data-src') || img.currentSrc || '';
+                            try { return new URL(src, location.href).toString(); } catch(e) { return src || null; }
+                        }
+                        """
+                    )
+                    if img_src:
+                        page_image_urls[str(page_number)] = img_src
+                except Exception:
+                    pass
+
                 shot_name = f"{job_id}_p{page_number}.png"
                 shot_path = screenshots_dir / shot_name
                 await page.screenshot(path=str(shot_path), full_page=True)
@@ -186,7 +206,8 @@ async def scrape_lokmat_times_edition(
                         break
                     continue
 
-            save_ocr_output(job_id, raw_entries, data_dir)
+            # Save OCR results and include discovered original image URLs for viewer use
+            save_ocr_output(job_id, raw_entries, data_dir, metadata={"page_image_urls": page_image_urls})
         finally:
             await browser.close()
 

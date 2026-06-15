@@ -82,12 +82,21 @@ def run_ocr(reader, image_path: Path, page_number: int = 1) -> list[dict]:
     return finalized
 
 
-def save_ocr_output(document_id: str, ocr_entries: list[dict], data_dir: Path) -> Path:
+def save_ocr_output(document_id: str, ocr_entries: list[dict], data_dir: Path, metadata: dict | None = None) -> Path:
     data_dir.mkdir(parents=True, exist_ok=True)
     document_path = data_dir / f"{document_id}.json"
 
     with document_path.open("w", encoding="utf-8") as f:
         json.dump(ocr_entries, f, ensure_ascii=False, indent=2)
+
+    # Optionally write metadata alongside the OCR JSON (keeps main file format unchanged)
+    if metadata:
+        meta_path = data_dir / f"{document_id}_meta.json"
+        try:
+            with meta_path.open("w", encoding="utf-8") as mf:
+                json.dump(metadata, mf, ensure_ascii=False, indent=2)
+        except Exception:
+            logger.exception("Failed to write OCR metadata for %s", document_id)
 
     return document_path
 

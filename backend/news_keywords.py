@@ -33,302 +33,265 @@ def _unique_keywords(keywords: Iterable[str]) -> tuple[str, ...]:
 
 class _NewsKeywordCatalog:
     ENGLISH_BLOCK = """
-electricity
-electrical
-power generation
-power transmission
-power distribution
-power supply
-power plant
-power station
-grid
-power grid
-national grid
-smart grid
-electric grid
-grid station
-grid substation
-substation
-switchyard
-transformer
-feeder
-distribution transformer
-power transformer
-transmission line
-distribution line
-power line
-electric pole
-transmission tower
-load dispatch
-load dispatch centre
-load shedding
 electricity board
 state electricity board
-central electricity authority
-CEA
-central electricity regulatory commission
-CERC
-state electricity regulatory commission
-SERC
-joint electricity regulatory commission
-JERC
-electricity regulatory commission
 electricity department
-discom
+power distribution company
 distribution company
 distribution utility
+discom
 genco
-generation company
 transco
-transmission company
-electric utility
-electricity company
-electricity network
-transmission network
-distribution network
-generation station
-generating station
-thermal power
-thermal power plant
-thermal station
-coal power plant
-coal based power plant
-hydro power
-hydroelectric power
-hydel project
-hydroelectric station
-dam
-reservoir
-pumped storage
-solar power
-solar energy
-solar plant
-solar project
-solar park
-floating solar
-rooftop solar
-wind power
-wind energy
-wind farm
-renewable energy
+
+power grid
+electric grid
+grid substation
+substation
+
+transformer
+distribution transformer
+power transformer
+
+switchyard
+feeder
+
+transmission line
+distribution line
+
+electric pole
+transmission tower
+
+load dispatch centre
+
 smart meter
 digital meter
 prepaid meter
 meter reading
 net metering
+
 electricity bill
-connection
+power bill
+
+electricity connection
 new connection
-disconnection
 reconnection
+disconnection
+
 electrification
 rural electrification
-village electrification
+
 power outage
 electricity outage
 power cut
-grid failure
+load shedding
+blackout
 power failure
-supply disruption
-maintenance shutdown
-planned shutdown
+grid failure
+
 electricity theft
 power theft
-renewable purchase obligation
-RPO
-electricity act
-high voltage
-extra high voltage
-ultra high voltage
+
+electricity tariff
+power tariff
+
 HT line
 LT line
-EHV line
-UHV line
-11 kV
-22 kV
-33 kV
-66 kV
-110 kV
-132 kV
-220 kV
-400 kV
-765 kV
-800 kV
-HVDC
-HVAC
-reactor
-capacitor bank
-busbar
-relay
+
 circuit breaker
-isolator
 switchgear
+isolator
+relay
+busbar
+
+electricity consumer
+consumer grievance
+
+transformer failure
+transformer replacement
+transformer repair
+
+feeder fault
+line fault
+cable fault
+
+electrocution
+electric shock
+
+lineman
+junior engineer
+assistant engineer
+executive engineer
+chief engineer
+
+CEA
+CERC
+SERC
+JERC
+
+power station
+generation station
+thermal power plant
+hydroelectric station
 """
 
     MARATHI_BLOCK = """
 वीज
 विद्युत
+
 वीज मंडळ
 विद्युत मंडळ
-राज्य वीज मंडळ
-केंद्रीय वीज प्राधिकरण
-केंद्रीय विद्युत प्राधिकरण
-वीज विभाग
-विद्युत विभाग
-वीज कंपनी
-विद्युत कंपनी
-वीज निर्मिती
-विद्युत निर्मिती
-वीज उत्पादन
-विद्युत उत्पादन
-वीज वितरण
-विद्युत वितरण
-वीज पारेषण
-विद्युत पारेषण
-वीज पुरवठा
-विद्युत पुरवठा
-वीज प्रकल्प
-विद्युत प्रकल्प
-वीज केंद्र
-वीज स्टेशन
-वीज ग्रीड
-राष्ट्रीय ग्रीड
-स्मार्ट ग्रीड
-लोड डिस्पॅच केंद्र
-उपकेंद्र
-विद्युत उपकेंद्र
-ट्रान्सफॉर्मर
-विद्युत रोहित्र
-फीडर
-स्विचयार्ड
-वीज वाहिनी
-पारेषण लाईन
-वितरण लाईन
-वीज खांब
-पारेषण मनोरा
-स्मार्ट मीटर
-डिजिटल मीटर
-प्रीपेड मीटर
-नेट मीटरिंग
-मीटर वाचन
-मीटर बदल
-मीटर बसविणे
-वीज बिल
-वीज ग्राहक
-वीज जोडणी
-नवीन वीज जोडणी
-वीज खंडित
-वीज पुरवठा बंद
-वीज कपात
-लोडशेडिंग
-ग्रीड बिघाड
-वीज बिघाड
-वीज चोरी
-नवीकरणीय ऊर्जा
-सौर ऊर्जा
-सौर वीज
-सौर प्रकल्प
-सौर पार्क
-रूफटॉप सोलर
-पवन ऊर्जा
-जलविद्युत
-जलविद्युत प्रकल्प
-धरण
-जलाशय
-pumped storage
-पंप्ड स्टोरेज
-औष्णिक विद्युत
-औष्णिक प्रकल्प
-कोळसा आधारित प्रकल्प
-तापीय वीज प्रकल्प
-बॉयलर
-टर्बाइन
-महाराष्ट्र राज्य वीज मंडळ
+
 महावितरण
 महापारेषण
 महानिर्मिती
-महाराष्ट्र विद्युत नियामक आयोग
+
+वीज विभाग
+विद्युत विभाग
+
+वीज निर्मिती
+वीज वितरण
+वीज पारेषण
+वीज पुरवठा
+
+उपकेंद्र
+विद्युत उपकेंद्र
+
+ट्रान्सफॉर्मर
+रोहित्र
+
+फीडर
+स्विचयार्ड
+
+पारेषण लाईन
+वितरण लाईन
+
+वीज वाहिनी
+
+वीज खांब
+पारेषण मनोरा
+
+स्मार्ट मीटर
+डिजिटल मीटर
+प्रीपेड मीटर
+
+मीटर वाचन
+मीटर बदल
+
+वीज बिल
+
+वीज ग्राहक
+
+वीज जोडणी
+नवीन वीज जोडणी
+
+वीज खंडित
+वीज कपात
+लोडशेडिंग
+
+ग्रीड बिघाड
+वीज बिघाड
+
+वीज चोरी
+
+एचटी लाईन
+एलटी लाईन
+
+सर्किट ब्रेकर
+स्विचगिअर
+
+व्होल्टेज समस्या
+
+रोहित्र निकामी
+रोहित्र जळाले
+रोहित्र बदल
+
+फीडर बिघाड
+
+विद्युत अपघात
+वीज धक्का
+
+लाईनमन
+
+कनिष्ठ अभियंता
+सहाय्यक अभियंता
+कार्यकारी अभियंता
+मुख्य अभियंता
 """
 
     HINDI_BLOCK = """
 बिजली
 विद्युत
+
 बिजली बोर्ड
 विद्युत बोर्ड
-राज्य विद्युत बोर्ड
-केंद्रीय विद्युत प्राधिकरण
+
 बिजली विभाग
 विद्युत विभाग
-बिजली कंपनी
-विद्युत कंपनी
+
 बिजली उत्पादन
-विद्युत उत्पादन
 बिजली वितरण
-विद्युत वितरण
 बिजली पारेषण
-विद्युत पारेषण
 बिजली आपूर्ति
-विद्युत आपूर्ति
-बिजली परियोजना
-विद्युत परियोजना
-बिजली संयंत्र
-विद्युत संयंत्र
-पावर स्टेशन
-बिजली स्टेशन
-ग्रिड
-राष्ट्रीय ग्रिड
-स्मार्ट ग्रिड
-लोड डिस्पैच केंद्र
+
 उपकेंद्र
 विद्युत उपकेंद्र
+
 ट्रांसफार्मर
+
 फीडर
 स्विचयार्ड
-बिजली लाइन
+
 पारेषण लाइन
 वितरण लाइन
+
+बिजली लाइन
+
 बिजली खंभा
 ट्रांसमिशन टावर
+
 स्मार्ट मीटर
 डिजिटल मीटर
 प्रीपेड मीटर
-नेट मीटरिंग
+
 मीटर रीडिंग
 मीटर बदल
-मीटर स्थापना
+
 बिजली बिल
+
 बिजली उपभोक्ता
+
 बिजली कनेक्शन
-नया कनेक्शन
+
 बिजली कटौती
 बिजली गुल
 लोड शेडिंग
+
 ग्रिड फेल
-बिजली बाधित
+
 बिजली चोरी
-नवीकरणीय ऊर्जा
-सौर ऊर्जा
-सौर बिजली
-सौर परियोजना
-सौर पार्क
-रूफटॉप सोलर
-पवन ऊर्जा
-जल विद्युत
-जलविद्युत परियोजना
-बांध
-जलाशय
-पंप्ड स्टोरेज
-ताप विद्युत
-थर्मल पावर
-कोयला आधारित संयंत्र
-तापीय बिजलीघर
-बॉयलर
-टर्बाइन
-महाराष्ट्र राज्य विद्युत मंडल
-महावितरण
-महापारेषण
-महानिर्मिती
-महाराष्ट्र विद्युत नियामक आयोग
+
+एचटी लाइन
+एलटी लाइन
+
+सर्किट ब्रेकर
+स्विचगियर
+
+वोल्टेज समस्या
+
+ट्रांसफार्मर खराब
+ट्रांसफार्मर जला
+
+फीडर खराब
+
+विद्युत दुर्घटना
+करंट लगना
+
+लाइनमैन
+
+कनिष्ठ अभियंता
+सहायक अभियंता
+कार्यकारी अभियंता
+मुख्य अभियंता
 """
 
     @classmethod
