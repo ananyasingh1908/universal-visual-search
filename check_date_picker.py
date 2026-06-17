@@ -19,7 +19,7 @@ tests = [
     ('Calendar popup has correct classes', 'absolute top-full mt-2 p-4 bg-white dark:bg-gray-800 border rounded-lg shadow-lg z-50' in content),
     ('Calendar renders conditionally', '{showCalendar && (' in content),
     ('Date display formatting', 'toLocaleDateString("en-IN"' in content),
-    ('Date selection handler', 'onClick={() => selectDate(date.toISOString().split(\'T\')[0])}' in content),
+    ('Date selection handler', 'onClick={() => dayjs(selectedDate).format("YYYY-MM-DD"))}' in content),
 ]
 
 print("Date Picker Implementation Analysis:")

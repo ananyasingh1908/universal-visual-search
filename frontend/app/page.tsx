@@ -1022,13 +1022,15 @@ const Page = () => {
                   <div key={`empty-${i}`} className="text-center p-1"></div>
                 ))}
                 {Array.from({ length: daysInMonth }, (_, i) => {
+                  const formatLocalDate = (date: Date) =>
+                  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                   const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), i + 1);
-                  const isSelected = selectedDate === date.toISOString().split('T')[0];
+                  const isSelected = selectedDate === formatLocalDate(date);                  
                   const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                  return (
+                return (
                     <button
                       key={i + 1}
-                      onClick={() => selectDate(date.toISOString().split('T')[0])}
+                      onClick={() => selectDate(formatLocalDate(date))}
                       className={cn(
                         "p-2 text-sm rounded hover:bg-blue-50 dark:hover:bg-blue-900/20",
                         isSelected ? "bg-blue-600 text-white" : "",
